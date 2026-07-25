@@ -20,7 +20,7 @@ interface ChatMessage {
 }
 
 const ROUTER_URL = process.env.ZG_ROUTER_URL ?? 'https://router-api.0g.ai/v1'
-const MODEL = process.env.ZG_MODEL ?? 'zai-org/GLM-5-FP8'
+const MODEL = process.env.ZG_MODEL ?? '0gm-1.0-35b-a3b'
 
 function catalogDigest(options: CoverOption[]): string {
   return options
