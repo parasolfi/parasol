@@ -56,15 +56,8 @@ type Resolution @entity(immutable: false) {
 
 # TokenToOutcome (from common/schema.graphql) is CTF-specific — Azuro isn't a
 # CTF venue, so it's omitted here rather than copied in unused.
-
-# Internal lookup: Azuro's own raw outcome id (from ConditionCreated's
-# `outcomes` array / ConditionResolved's `winningOutcomes` array) -> our
-# positional outcomeIndex. Azuro identifies outcomes by a global numeric id,
-# not by array position, so ConditionResolved reports winners by that raw id —
-# this lookup, populated at ConditionCreated time, is what lets
-# handleConditionResolved translate it back to outcomeIndex.
-type AzuroOutcomeLookup @entity(immutable: true) {
-  id: ID! # "<market.id>-<raw azuro outcome id>"
-  market: Market!
-  outcomeIndex: Int!
-}
+#
+# No resolution-lookup helper here (yet): resolution tracking isn't wired up
+# for this venue — see mapping.ts for why (the resolution-equivalent event's
+# exact signature for the deployed contract version isn't confirmed). Add one
+# here (matching the pattern this file used before) once it is.

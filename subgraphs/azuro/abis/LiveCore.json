@@ -1,0 +1,14 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "gameId", "type": "uint256" },
+      { "indexed": true, "internalType": "uint256", "name": "conditionId", "type": "uint256" },
+      { "indexed": false, "internalType": "uint128[]", "name": "outcomes", "type": "uint128[]" },
+      { "indexed": false, "internalType": "uint64[]", "name": "odds", "type": "uint64[]" },
+      { "indexed": false, "internalType": "uint8", "name": "winningOutcomesCount", "type": "uint8" }
+    ],
+    "name": "ConditionCreated",
+    "type": "event"
+  }
+]

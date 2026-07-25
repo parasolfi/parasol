@@ -5,26 +5,21 @@ schema:
   file: ./schema.graphql
 dataSources:
   - kind: ethereum/contract
-    name: ClientCore
-    # Azuro's real production subgraph (Azuro-protocol/Azuro-subgraphs) discovers
-    # Core contracts dynamically via a Factory's NewPool/NewCore events, because
-    # Core contracts get redeployed across protocol versions and Core addresses
-    # aren't stable ahead of time. We deliberately skip that: the Factory's
-    # relevant NewCore event almost certainly happened long before any window
-    # we could afford to sync (Core deployments are rare, unlike trades), so a
-    # recent-window factory scan would likely find zero and never even reach a
-    # Core contract to index. Instead we point straight at the currently-live
-    # "ClientCore" address from Azuro's own deployment-addresses page
-    # (v3.0.13, Polygon prod) as a static source, same pattern as Polymarket.
-    # Interface is assumed compatible with the CoreV3 ABI from the reference
-    # subgraph repo (same ConditionCreated/ConditionResolved/OddsChanged/
-    # getCondition shape) — not independently verified against a fetched ABI
-    # for this exact address, since Polygonscan needs a key we don't have.
+    name: LiveCore
+    # The address published as "ClientCore" on Azuro's own deployment-addresses
+    # page turned out to actually be a LiveCore contract (live/in-play betting),
+    # not the pre-match Core its docs implied — confirmed by pulling 382 real
+    # logs from this address and matching their topic0 hashes against every
+    # ABI in Azuro's own public-config repo. Only ConditionCreated matched
+    # cleanly against a confirmed real on-chain event; a second event,
+    # ConditionUpdated, matched too but its field semantics couldn't be
+    # confirmed (see mapping.ts) so it's deliberately not wired up. Docs pages
+    # for fast-moving protocols lag deployed bytecode — verify against real
+    # logs, not the docs page, before trusting an address+ABI pairing.
     network: matic
     source:
       address: "0xF9548Be470A4e130c90ceA8b179FCD66D2972AC7"
-      abi: CoreV3
-      # ~21k blocks back from chain head (~90,871,374 as of 2026-07-25).
+      abi: LiveCore
       startBlock: 90850000
     mapping:
       kind: ethereum/events
@@ -33,16 +28,10 @@ dataSources:
       entities:
         - Market
         - Outcome
-        - Resolution
-        - AzuroOutcomeLookup
       abis:
-        - name: CoreV3
-          file: ./abis/CoreV3.json
+        - name: LiveCore
+          file: ./abis/LiveCore.json
       eventHandlers:
-        - event: ConditionCreated(indexed uint256,indexed uint256,uint64[])
+        - event: ConditionCreated(indexed uint256,indexed uint256,uint128[],uint64[],uint8)
           handler: handleConditionCreated
-        - event: ConditionResolved(indexed uint256,uint8,uint64[],int128)
-          handler: handleConditionResolved
-        - event: OddsChanged(indexed uint256,uint256[])
-          handler: handleOddsChanged
       file: ./src/mapping.ts

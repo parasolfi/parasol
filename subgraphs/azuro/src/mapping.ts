@@ -1,71 +1,49 @@
-import { Address, BigDecimal, BigInt, log } from '@graphprotocol/graph-ts';
-import { ConditionCreated, ConditionResolved, OddsChanged, CoreV3 } from '../generated/ClientCore/CoreV3';
-import { AzuroOutcomeLookup, Market, Outcome, Resolution } from '../generated/schema';
+import { Address, BigDecimal, BigInt } from '@graphprotocol/graph-ts';
+import { ConditionCreated } from '../generated/LiveCore/LiveCore';
+import { Market, Outcome } from '../generated/schema';
 
 const VENUE = 'azuro';
+
+// Azuro's odds are decimal odds, 1e12 fixed-point (confirmed empirically: a
+// real on-chain ConditionCreated for a 2-way match decoded to odds
+// [2.05, 1.75] — sane bookmaker decimal odds, ~6% overround, not noise).
+const ODDS_SCALE = BigDecimal.fromString('1000000000000');
 
 function marketId(conditionId: BigInt): string {
   return VENUE + '-' + conditionId.toString();
 }
 
-// Raw, margin-free implied probability: outcomeFund * winningOutcomesCount / totalFund.
-// This is deliberately NOT Azuro's own "odds" (their public API bakes a bookmaker
-// margin into that via an iterative algorithm — see Azuro-subgraphs/api/src/utils/
-// math.ts). We want the underlying market belief, comparable with Polymarket's
-// trade price, not a margin-inclusive number that would skew the comparison.
-function refreshOutcomeProbabilities(
-  marketEntityId: string,
-  coreAddress: Address,
-  conditionId: BigInt,
-  blockNumber: BigInt,
-  blockTimestamp: BigInt,
-): void {
-  const core = CoreV3.bind(coreAddress);
-  const conditionCall = core.try_getCondition(conditionId);
-  if (conditionCall.reverted) {
-    log.warning('getCondition reverted for condition {}', [conditionId.toString()]);
-    return;
+// Multiplicative de-vig: raw_i = (1/odds_i) / sum(1/odds_j). This strips the
+// bookmaker margin baked into decimal odds, giving a probability comparable
+// with Polymarket's trade price rather than a number systematically inflated
+// by the overround. (Not the same as Azuro's own iterative margin algorithm —
+// that goes the other direction, probability -> margin-inclusive odds; this
+// is the simpler reverse case.)
+function devigProbabilities(odds: BigInt[]): BigDecimal[] {
+  const inverses: BigDecimal[] = [];
+  let sumInverse = BigDecimal.zero();
+  for (let i = 0; i < odds.length; i++) {
+    const decimalOdds = odds[i].toBigDecimal().div(ODDS_SCALE);
+    const inverse = BigDecimal.fromString('1').div(decimalOdds);
+    inverses.push(inverse);
+    sumInverse = sumInverse.plus(inverse);
   }
-  const condition = conditionCall.value;
-  const virtualFunds = condition.virtualFunds;
-  const winningOutcomesCount = condition.winningOutcomesCount;
-
-  let totalFund = BigInt.zero();
-  for (let i = 0; i < virtualFunds.length; i++) {
-    totalFund = totalFund.plus(virtualFunds[i]);
+  const probabilities: BigDecimal[] = [];
+  for (let i = 0; i < inverses.length; i++) {
+    probabilities.push(inverses[i].div(sumInverse));
   }
-  if (totalFund.equals(BigInt.zero())) {
-    return;
-  }
-
-  for (let i = 0; i < virtualFunds.length; i++) {
-    const outcome = Outcome.load(marketEntityId + '-' + i.toString());
-    if (outcome == null) {
-      continue;
-    }
-    const probability = virtualFunds[i]
-      .toBigDecimal()
-      .times(BigDecimal.fromString(winningOutcomesCount.toString()))
-      .div(totalFund.toBigDecimal());
-    outcome.impliedProbability = probability;
-    outcome.lastUpdatedAt = blockTimestamp;
-    outcome.lastUpdatedBlock = blockNumber;
-    outcome.save();
-  }
+  return probabilities;
 }
 
 export function handleConditionCreated(event: ConditionCreated): void {
   const conditionId = event.params.conditionId;
   const id = marketId(conditionId);
-  const outcomeIds = event.params.outcomes;
+  const outcomeIds = event.params.outcomes; // raw Azuro outcome ids (uint128), positional order
+  const odds = event.params.odds; // same order as outcomeIds
 
-  const core = CoreV3.bind(event.address);
-  const conditionCall = core.try_getCondition(conditionId);
-  if (conditionCall.reverted) {
-    log.warning('getCondition reverted at creation for condition {}', [conditionId.toString()]);
+  if (outcomeIds.length != odds.length || outcomeIds.length == 0) {
     return;
   }
-  const condition = conditionCall.value;
 
   const market = new Market(id);
   market.venue = VENUE;
@@ -73,10 +51,15 @@ export function handleConditionCreated(event: ConditionCreated): void {
   market.questionId = null;
   market.question = null;
   market.outcomeSlotCount = outcomeIds.length;
-  market.oracle = condition.oracle;
+  // No oracle address available from this event — LiveCore's ConditionCreated
+  // doesn't carry one (unlike CTF's ConditionPreparation). Left as the zero
+  // address rather than guessed.
+  market.oracle = Address.zero();
   market.createdAtBlock = event.block.number;
   market.createdAtTimestamp = event.block.timestamp;
   market.save();
+
+  const probabilities = devigProbabilities(odds);
 
   for (let i = 0; i < outcomeIds.length; i++) {
     const outcome = new Outcome(id + '-' + i.toString());
@@ -84,60 +67,9 @@ export function handleConditionCreated(event: ConditionCreated): void {
     outcome.outcomeIndex = i;
     outcome.label = 'Outcome ' + i.toString();
     outcome.venueOutcomeId = outcomeIds[i].toString();
-    // Placeholder — overwritten immediately below by refreshOutcomeProbabilities
-    // once real virtualFunds are read; avoids a division before we have them.
-    outcome.impliedProbability = BigDecimal.fromString('1').div(
-      BigDecimal.fromString(outcomeIds.length.toString()),
-    );
+    outcome.impliedProbability = probabilities[i];
     outcome.lastUpdatedAt = event.block.timestamp;
     outcome.lastUpdatedBlock = event.block.number;
     outcome.save();
-
-    const lookup = new AzuroOutcomeLookup(id + '-' + outcomeIds[i].toString());
-    lookup.market = id;
-    lookup.outcomeIndex = i;
-    lookup.save();
   }
-
-  refreshOutcomeProbabilities(id, event.address, conditionId, event.block.number, event.block.timestamp);
-}
-
-export function handleOddsChanged(event: OddsChanged): void {
-  const conditionId = event.params.conditionId;
-  const id = marketId(conditionId);
-  if (Market.load(id) == null) {
-    // Condition created before our startBlock — nothing to attach this to.
-    return;
-  }
-  refreshOutcomeProbabilities(id, event.address, conditionId, event.block.number, event.block.timestamp);
-}
-
-export function handleConditionResolved(event: ConditionResolved): void {
-  const conditionId = event.params.conditionId;
-  const id = marketId(conditionId);
-  const market = Market.load(id);
-  if (market == null) {
-    return;
-  }
-
-  const winningOutcomes = event.params.winningOutcomes;
-  let winningIndex = -1;
-  if (winningOutcomes.length > 0) {
-    const lookup = AzuroOutcomeLookup.load(id + '-' + winningOutcomes[0].toString());
-    if (lookup != null) {
-      winningIndex = lookup.outcomeIndex;
-    }
-  }
-
-  const resolution = new Resolution(id);
-  resolution.market = id;
-  resolution.status = 'Resolved';
-  resolution.resolutionSource = market.oracle.toHexString();
-  if (winningIndex >= 0) {
-    resolution.winningOutcomeIndex = winningIndex;
-  } else {
-    log.warning('could not map winningOutcomeIndex for condition {}', [conditionId.toString()]);
-  }
-  resolution.finalizedAt = event.block.timestamp;
-  resolution.save();
 }
