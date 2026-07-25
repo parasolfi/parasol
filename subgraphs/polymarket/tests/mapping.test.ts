@@ -109,8 +109,10 @@ function createOrderFilledEvent(
   side: i32,
   makerAmountFilled: BigInt,
   takerAmountFilled: BigInt,
+  logIndex: i32 = 0,
 ): OrderFilled {
   const mock = newMockEvent();
+  mock.logIndex = BigInt.fromI32(logIndex);
   const event = new OrderFilled(
     mock.address,
     mock.logIndex,
@@ -207,6 +209,16 @@ describe('handleOrderFilled', () => {
     );
 
     assert.fieldEquals('Outcome', MARKET_ID + '-0', 'impliedProbability', '0.3');
+    assert.fieldEquals('Outcome', MARKET_ID + '-0', 'tradeCount', '1');
+    assert.fieldEquals('Outcome', MARKET_ID + '-0', 'volume', '0.00003');
+
+    // a second fill accumulates rather than overwrites
+    handleOrderFilled(
+      createOrderFilledEvent(POSITION_ID_0, 0, BigInt.fromI32(60), BigInt.fromI32(100), 1),
+    );
+    assert.fieldEquals('Outcome', MARKET_ID + '-0', 'tradeCount', '2');
+    assert.fieldEquals('Outcome', MARKET_ID + '-0', 'volume', '0.00009');
+    assert.entityCount('PricePoint', 2);
   });
 
   test('SELL: price = takerAmountFilled (USDC in) / makerAmountFilled (shares out)', () => {

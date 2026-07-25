@@ -12,8 +12,11 @@ dataSources:
     # logs from this address and matching their topic0 hashes against every
     # ABI in Azuro's own public-config repo. All 4 distinct topics seen on this
     # address are now accounted for: ConditionCreated, ConditionUpdated
-    # (unwired — see mapping.ts), ConditionSettled, and NewLiveBet (not needed
-    # for our schema). The first hash-matching pass missed ConditionSettled
+    # (unwired — its "newOutcomes" field fires once per condition at creation
+    # time, not a live feed; see mapping.ts), ConditionSettled, and NewLiveBet
+    # (wired up — its per-bet `odds` field IS the live price feed, and
+    # `amount` is real per-bet volume; both confirmed by decoding a live log).
+    # The first hash-matching pass missed ConditionSettled
     # because it wasn't expanding tuple[] component types before hashing —
     # graph-node/Solidity compute event topics from the fully expanded
     # signature (e.g. "(uint128,uint8)[]"), not the bare ABI "tuple[]" string.
@@ -34,6 +37,7 @@ dataSources:
         - Outcome
         - Resolution
         - AzuroOutcomeLookup
+        - PricePoint
       abis:
         - name: LiveCore
           file: ./abis/LiveCore.json
@@ -42,4 +46,6 @@ dataSources:
           handler: handleConditionCreated
         - event: ConditionSettled(indexed uint256,uint8,(uint128,uint8)[],int128,uint64)
           handler: handleConditionSettled
+        - event: NewLiveBet(indexed uint256,indexed address,indexed address,uint8,uint256,uint128,(uint256,uint256,uint8,uint128,uint64)[],uint128)
+          handler: handleNewLiveBet
       file: ./src/mapping.ts

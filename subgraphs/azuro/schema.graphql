@@ -43,6 +43,22 @@ type Outcome @entity(immutable: false) {
   venueOutcomeId: String # the venue's own raw outcome identifier, if it has one
   # distinct from array position (e.g. Azuro's global outcome ids). Null where
   # position alone is the identifier (e.g. CTF's binary 0/1 indexSet venues).
+  volume: BigDecimal! # cumulative traded/bet size in collateral units (e.g. USDC)
+  tradeCount: Int! # number of fills/bets seen on this outcome
+  rawInverseOdds: BigDecimal # 1/decimalOdds before de-vig normalization — only
+  # meaningful for odds-quoted venues (Azuro); null for trade-price venues
+  # (Polymarket), which have no separate "raw" vs "de-vigged" distinction.
+  priceHistory: [PricePoint!]! @derivedFrom(field: "outcome")
+}
+
+# One row per price-changing event — lets you chart an outcome's implied
+# probability over time instead of only ever seeing the latest value.
+type PricePoint @entity(immutable: true) {
+  id: ID! # "<outcome.id>-<block>-<logIndex>"
+  outcome: Outcome!
+  impliedProbability: BigDecimal!
+  timestamp: BigInt!
+  block: BigInt!
 }
 
 type Resolution @entity(immutable: false) {

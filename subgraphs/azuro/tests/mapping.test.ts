@@ -1,7 +1,7 @@
 import { assert, describe, test, clearStore, afterEach, newMockEvent } from 'matchstick-as/assembly/index';
-import { BigDecimal, BigInt, ethereum } from '@graphprotocol/graph-ts';
-import { handleConditionCreated, handleConditionSettled } from '../src/mapping';
-import { ConditionCreated, ConditionSettled } from '../generated/LiveCore/LiveCore';
+import { Address, BigDecimal, BigInt, ethereum } from '@graphprotocol/graph-ts';
+import { handleConditionCreated, handleConditionSettled, handleNewLiveBet } from '../src/mapping';
+import { ConditionCreated, ConditionSettled, NewLiveBet } from '../generated/LiveCore/LiveCore';
 import { Outcome } from '../generated/schema';
 
 const CONDITION_ID = BigInt.fromI32(777);
@@ -145,5 +145,84 @@ describe('handleConditionSettled', () => {
       ),
     );
     assert.entityCount('Resolution', 0);
+  });
+});
+
+function createNewLiveBetEvent(
+  amount: BigInt,
+  legs: Array<Array<BigInt>>, // [conditionId, outcomeId, odds][]
+): NewLiveBet {
+  const mock = newMockEvent();
+  const event = new NewLiveBet(
+    mock.address,
+    mock.logIndex,
+    mock.transactionLogIndex,
+    mock.logType,
+    mock.block,
+    mock.transaction,
+    mock.parameters,
+    mock.receipt,
+  );
+  const betDatas: ethereum.Tuple[] = [];
+  for (let i = 0; i < legs.length; i++) {
+    const t = new ethereum.Tuple();
+    t.push(ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(1))); // gameId, unused
+    t.push(ethereum.Value.fromUnsignedBigInt(legs[i][0])); // conditionId
+    t.push(ethereum.Value.fromI32(1)); // conditionKind, unused
+    t.push(ethereum.Value.fromUnsignedBigInt(legs[i][1])); // outcomeId
+    t.push(ethereum.Value.fromUnsignedBigInt(legs[i][2])); // odds
+    betDatas.push(t);
+  }
+  event.parameters = [
+    new ethereum.EventParam('tokenId', ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(1))),
+    new ethereum.EventParam('bettor', ethereum.Value.fromAddress(Address.zero())),
+    new ethereum.EventParam('affiliate', ethereum.Value.fromAddress(Address.zero())),
+    new ethereum.EventParam('betType', ethereum.Value.fromI32(0)),
+    new ethereum.EventParam('nonce', ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(1))),
+    new ethereum.EventParam('amount', ethereum.Value.fromUnsignedBigInt(amount)),
+    new ethereum.EventParam('betDatas', ethereum.Value.fromTupleArray(betDatas)),
+    new ethereum.EventParam('potentialLossLimit', ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(0))),
+  ];
+  return event;
+}
+
+describe('handleNewLiveBet', () => {
+  afterEach(() => {
+    clearStore();
+  });
+
+  test('records volume/tradeCount and re-devigs using this leg\'s new odds', () => {
+    const outcomeIds: BigInt[] = [BigInt.fromI32(10230), BigInt.fromI32(10231)];
+    const odds: BigInt[] = [BigInt.fromString('2050000000000'), BigInt.fromString('1750000000000')];
+    handleConditionCreated(createConditionCreatedEvent(outcomeIds, odds, 1));
+
+    // 5 USDC bet (5000000 raw, 6 decimals) on outcome 10230, whose odds moved
+    // from 2.05 to 3.0 (outcome 10231's odds, 1.75, is untouched by this bet).
+    handleNewLiveBet(
+      createNewLiveBetEvent(BigInt.fromString('5000000'), [
+        [CONDITION_ID, BigInt.fromI32(10230), BigInt.fromString('3000000000000')],
+      ]),
+    );
+
+    assert.fieldEquals('Outcome', MARKET_ID + '-0', 'tradeCount', '1');
+    assert.fieldEquals('Outcome', MARKET_ID + '-0', 'volume', '5');
+    assert.entityCount('PricePoint', 1);
+
+    // 1/3 = 0.3333, 1/1.75 = 0.5714, sum = 0.9048 -> p0 ~= 0.3684, p1 ~= 0.6316
+    const p0 = Outcome.load(MARKET_ID + '-0')!.impliedProbability;
+    const p1 = Outcome.load(MARKET_ID + '-1')!.impliedProbability;
+    assert.assertTrue(p0.gt(BigDecimal.fromString('0.36')));
+    assert.assertTrue(p0.lt(BigDecimal.fromString('0.37')));
+    assert.assertTrue(p1.gt(BigDecimal.fromString('0.62')));
+    assert.assertTrue(p1.lt(BigDecimal.fromString('0.64')));
+  });
+
+  test('a bet on an unindexed condition is a no-op', () => {
+    handleNewLiveBet(
+      createNewLiveBetEvent(BigInt.fromString('5000000'), [
+        [BigInt.fromI32(999999), BigInt.fromI32(1), BigInt.fromString('2000000000000')],
+      ]),
+    );
+    assert.entityCount('PricePoint', 0);
   });
 });

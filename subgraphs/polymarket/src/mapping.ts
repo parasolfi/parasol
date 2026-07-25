@@ -5,13 +5,14 @@ import {
   ConditionalTokens,
 } from '../generated/ConditionalTokens/ConditionalTokens';
 import { OrderFilled } from '../generated/Exchange/Exchange';
-import { Market, Outcome, Resolution, TokenToOutcome } from '../generated/schema';
+import { Market, Outcome, PricePoint, Resolution, TokenToOutcome } from '../generated/schema';
 
 const VENUE = 'polymarket';
 
 // Polygon mainnet USDC — Polymarket's fixed collateral asset. Needed to derive
 // CTF position ids (getPositionId takes the collateral token as an argument).
 const USDC_ADDRESS = Address.fromString('0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174');
+const USDC_DECIMALS = BigDecimal.fromString('1000000'); // 6 decimals
 
 // bytes32(0) — "no parent collection", i.e. a root position, not a combination
 // of multiple conditions. Every Polymarket binary market is a root position.
@@ -61,6 +62,9 @@ export function handleConditionPreparation(event: ConditionPreparation): void {
     );
     outcome.lastUpdatedAt = event.block.timestamp;
     outcome.lastUpdatedBlock = event.block.number;
+    outcome.volume = BigDecimal.zero();
+    outcome.tradeCount = 0;
+    outcome.rawInverseOdds = null; // not meaningful for a trade-price venue
     outcome.save();
 
     const indexSet = BigInt.fromI32(1).leftShift(<u8>i);
@@ -151,9 +155,21 @@ export function handleOrderFilled(event: OrderFilled): void {
   //      (takerAmountFilled) -> price = USDC received / shares given.
   const isBuy = event.params.side == SIDE_BUY;
   const price = isBuy ? maker.div(taker) : taker.div(maker);
+  const usdcLeg = isBuy ? maker : taker;
 
   outcome.impliedProbability = price;
   outcome.lastUpdatedAt = event.block.timestamp;
   outcome.lastUpdatedBlock = event.block.number;
+  outcome.volume = outcome.volume.plus(usdcLeg.div(USDC_DECIMALS));
+  outcome.tradeCount = outcome.tradeCount + 1;
   outcome.save();
+
+  const pricePoint = new PricePoint(
+    outcome.id + '-' + event.block.number.toString() + '-' + event.logIndex.toString(),
+  );
+  pricePoint.outcome = outcome.id;
+  pricePoint.impliedProbability = price;
+  pricePoint.timestamp = event.block.timestamp;
+  pricePoint.block = event.block.number;
+  pricePoint.save();
 }
