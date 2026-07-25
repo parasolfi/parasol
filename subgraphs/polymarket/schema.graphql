@@ -1,0 +1,52 @@
+# Canonical prediction-market schema, shared verbatim across every venue subgraph
+# (polymarket, omen, seer, azuro, ...). This file is the source of truth — each
+# venue folder keeps an identical copy (subgraphs/<venue>/schema.graphql) because
+# Subgraph Studio deploys need their own schema.graphql per deployment. If you
+# change this file, copy it over the per-venue ones too, or the venues drift out
+# of the "standardized schema" story the Graph track is judged on.
+
+type Market @entity(immutable: true) {
+  id: ID! # "<venue>-<conditionId>" — globally unique across venues
+  venue: String! # "polymarket" | "omen" | "seer" | "azuro"
+  venueConditionId: Bytes! # the venue's own condition/market identifier
+  questionId: Bytes! # CTF questionId (raw, on-chain) — not human-readable
+  question: String # human-readable text, if/when enriched from an off-chain
+  # metadata source (e.g. Polymarket's Gamma API). NOT populated by the mapping
+  # itself — on-chain events never carry question text. Leave null otherwise.
+  outcomeSlotCount: Int!
+  oracle: Bytes! # address that resolves this condition
+  outcomes: [Outcome!]! @derivedFrom(field: "market")
+  resolution: Resolution @derivedFrom(field: "market")
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+}
+
+type Outcome @entity(immutable: false) {
+  id: ID! # "<market.id>-<outcomeIndex>"
+  market: Market!
+  outcomeIndex: Int!
+  label: String! # "Outcome 0" / "Outcome 1" unless the venue exposes real labels
+  impliedProbability: BigDecimal! # 0..1, derived per-venue (trade price, odds, etc.)
+  lastUpdatedAt: BigInt!
+  lastUpdatedBlock: BigInt!
+}
+
+type Resolution @entity(immutable: false) {
+  id: ID! # same as market.id
+  market: Market!
+  status: String! # "Pending" | "Resolved" | "Disputed"
+  resolutionSource: String! # "UMA" | "AzuroOracle" | "InternalCTF" | raw oracle address
+  winningOutcomeIndex: Int
+  finalizedAt: BigInt
+}
+
+# Internal lookup: ERC1155 CTF position id -> which Market/outcome it represents.
+# Populated at market-creation time via on-chain getCollectionId/getPositionId
+# contract calls (NOT reimplemented locally — modern CTF derives collection ids
+# as elliptic-curve points, not a plain hash, so we ask the contract instead of
+# recomputing it). Shared by every CTF-native venue (Polymarket, Omen, Seer).
+type TokenToOutcome @entity(immutable: true) {
+  id: ID! # ERC1155 positionId, decimal string
+  market: Market!
+  outcomeIndex: Int!
+}

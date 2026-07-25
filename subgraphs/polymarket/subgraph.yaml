@@ -1,0 +1,60 @@
+specVersion: 0.0.6
+description: Parasol — standardized prediction-market index (Polymarket venue)
+repository: https://github.com/parasolfi/parasol
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: ConditionalTokens
+    network: matic
+    source:
+      address: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+      abi: ConditionalTokens
+      # ~2 weeks back from chain head (~90,867,208 as of 2026-07-25) — bounded in
+      # time, not by market, per the "index everything, recent window" decision.
+      # Re-check the current head before deploying if this goes stale.
+      startBlock: 90267000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Market
+        - Outcome
+        - Resolution
+        - TokenToOutcome
+      abis:
+        - name: ConditionalTokens
+          file: ./abis/ConditionalTokens.json
+      eventHandlers:
+        - event: ConditionPreparation(indexed bytes32,indexed address,indexed bytes32,uint256)
+          handler: handleConditionPreparation
+        - event: ConditionResolution(indexed bytes32,indexed address,indexed bytes32,uint256,uint256[])
+          handler: handleConditionResolution
+      file: ./src/mapping.ts
+  - kind: ethereum/contract
+    name: Exchange
+    # CTF Exchange V2 (0xE111...B996B) — current/audited contract per Polymarket's
+    # own docs, NOT the V1 address (0x4bFb...982E) used by their older reference
+    # subgraph. V1 and V2 have incompatible OrderFilled shapes — see the ABI here,
+    # hand-built from ctf-exchange-v2's Events.sol since Polygonscan's ABI API
+    # needs a key we don't have. Re-verify against a real key before relying on
+    # this for the actual demo.
+    network: matic
+    source:
+      address: "0xE111180000d2663C0091e4f400237545B87B996B"
+      abi: Exchange
+      startBlock: 90267000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Outcome
+      abis:
+        - name: Exchange
+          file: ./abis/Exchange.json
+      eventHandlers:
+        - event: OrderFilled(indexed bytes32,indexed address,indexed address,uint8,uint256,uint256,uint256,uint256,bytes32,bytes32)
+          handler: handleOrderFilled
+      file: ./src/mapping.ts
