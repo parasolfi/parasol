@@ -1,5 +1,6 @@
-// End-to-end smoke check: search all 3 venues via their adapters, and query
-// both live subgraphs directly, so everything can be eyeballed in one run.
+// End-to-end smoke check: search all 3 venues via their adapters, and pull
+// both live subgraphs through the merge layer (real price/volume + real
+// text), so everything can be eyeballed in one run.
 //
 // Usage: node --experimental-strip-types scripts/check.ts [topic]
 // Defaults to "rain" if no topic given (works for Polymarket/Kalshi; Azuro's
@@ -8,22 +9,11 @@
 import { searchPolymarketMarkets } from '../adapters/polymarket/polymarket.ts';
 import { searchAzuroMarkets } from '../adapters/azuro/azuro.ts';
 import { searchKalshiMarkets } from '../adapters/kalshi/kalshi.ts';
-import { getQuestionText } from './enrich.ts';
+import { getEnrichedMarkets, getSubgraphMeta, type EnrichedMarket } from '../merge/merge.ts';
 
 const SUBGRAPH_BASE = 'https://api.studio.thegraph.com/query/1756988';
 const POLYMARKET_SUBGRAPH = `${SUBGRAPH_BASE}/parasol-polymarket/v0.0.6`;
 const AZURO_SUBGRAPH = `${SUBGRAPH_BASE}/parasol-azuro/v0.0.4`;
-
-async function querySubgraph(url: string, query: string): Promise<any> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-  const json = await res.json();
-  if (json.errors) throw new Error(JSON.stringify(json.errors));
-  return json.data;
-}
 
 function printMarket(m: {
   question: string;
@@ -34,10 +24,8 @@ function printMarket(m: {
   const status = m.resolution ? `[${m.resolution.status}]` : '[open]';
   console.log(`  - ${m.question} ${status} -- ${prices}`);
   if (m.outcomes[0]?.volume !== undefined) {
-    // GraphQL serializes BigDecimal/Int as strings — `+` on strings
-    // concatenates rather than adds, unlike `*` above (which coerces).
-    const totalVolume = m.outcomes.reduce((sum, o) => sum + parseFloat(String(o.volume ?? 0)), 0);
-    const totalTrades = m.outcomes.reduce((sum, o) => sum + parseInt(String(o.tradeCount ?? 0), 10), 0);
+    const totalVolume = m.outcomes.reduce((sum, o) => sum + (o.volume ?? 0), 0);
+    const totalTrades = m.outcomes.reduce((sum, o) => sum + (o.tradeCount ?? 0), 0);
     console.log(`      volume=${totalVolume.toFixed(2)}  trades=${totalTrades}`);
   }
 }
@@ -59,34 +47,22 @@ async function checkAdapters(topic: string) {
 }
 
 async function checkSubgraphs() {
-  console.log('\n=== SUBGRAPHS (standardized on-chain index, enriched with venue API text) ===');
+  console.log('\n=== SUBGRAPHS (via the merge layer: real chain data + real venue text) ===');
 
   console.log('\nPolymarket subgraph:');
-  const pmMeta = await querySubgraph(POLYMARKET_SUBGRAPH, '{ _meta { block { number } hasIndexingErrors } }');
-  console.log('  sync status:', JSON.stringify(pmMeta._meta));
-  const pmData = await querySubgraph(
-    POLYMARKET_SUBGRAPH,
-    '{ markets(first: 3) { venueConditionId outcomes { label impliedProbability volume tradeCount } resolution { status } } }',
-  );
-  if (pmData.markets.length === 0) {
+  const pmMeta = await getSubgraphMeta(POLYMARKET_SUBGRAPH);
+  console.log('  sync status:', JSON.stringify(pmMeta));
+  const pmMarkets = await getEnrichedMarkets(POLYMARKET_SUBGRAPH, 'polymarket', 3);
+  if (pmMarkets.length === 0) {
     console.log('  (no markets yet — this version may still be syncing, or queued behind older versions in Studio)');
   }
-  for (const m of pmData.markets) {
-    const question = (await getQuestionText('polymarket', m.venueConditionId)) ?? m.venueConditionId;
-    printMarket({ question, outcomes: m.outcomes, resolution: m.resolution });
-  }
+  pmMarkets.forEach((m: EnrichedMarket) => printMarket(m));
 
   console.log('\nAzuro subgraph:');
-  const azMeta = await querySubgraph(AZURO_SUBGRAPH, '{ _meta { block { number } hasIndexingErrors } }');
-  console.log('  sync status:', JSON.stringify(azMeta._meta));
-  const azData = await querySubgraph(
-    AZURO_SUBGRAPH,
-    '{ markets(first: 3) { venueConditionId outcomes { label impliedProbability volume tradeCount } resolution { status winningOutcomeIndex } } }',
-  );
-  for (const m of azData.markets) {
-    const question = (await getQuestionText('azuro', m.venueConditionId)) ?? m.venueConditionId;
-    printMarket({ question, outcomes: m.outcomes, resolution: m.resolution });
-  }
+  const azMeta = await getSubgraphMeta(AZURO_SUBGRAPH);
+  console.log('  sync status:', JSON.stringify(azMeta));
+  const azMarkets = await getEnrichedMarkets(AZURO_SUBGRAPH, 'azuro', 3);
+  azMarkets.forEach((m: EnrichedMarket) => printMarket(m));
 }
 
 const topic = process.argv[2] ?? 'rain';
