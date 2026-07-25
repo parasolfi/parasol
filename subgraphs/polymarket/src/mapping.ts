@@ -5,6 +5,11 @@ import {
   ConditionalTokens,
 } from '../generated/ConditionalTokens/ConditionalTokens';
 import { OrderFilled } from '../generated/Exchange/Exchange';
+import {
+  NegRiskAdapter,
+  OutcomeReported,
+  QuestionPrepared,
+} from '../generated/NegRiskAdapter/NegRiskAdapter';
 import { Market, Outcome, PricePoint, Resolution, TokenToOutcome } from '../generated/schema';
 
 const VENUE = 'polymarket';
@@ -172,4 +177,71 @@ export function handleOrderFilled(event: OrderFilled): void {
   pricePoint.timestamp = event.block.timestamp;
   pricePoint.block = event.block.number;
   pricePoint.save();
+}
+
+// NegRisk (bundled/threshold) markets don't use CTF's plain getCollectionId/
+// getPositionId derivation for their traded token ids — confirmed by
+// computing both for a real market and getting a mismatch against
+// Polymarket's actual reported clobTokenIds. NegRiskAdapter.getPositionId is
+// the correct, contract-verified derivation instead. Convention: outcome
+// index 0 = false/"NO", 1 = true/"YES" — an internal choice (Outcome 0/1 are
+// generic labels already, not asserted to mean anything beyond array
+// position), consistent as long as lookups use the same mapping as creation.
+export function handleQuestionPrepared(event: QuestionPrepared): void {
+  const questionId = event.params.questionId;
+  const adapter = NegRiskAdapter.bind(event.address);
+
+  const conditionIdCall = adapter.try_getConditionId(questionId);
+  if (conditionIdCall.reverted) {
+    log.warning('NegRiskAdapter.getConditionId reverted for question {}', [questionId.toHexString()]);
+    return;
+  }
+  const id = marketId(conditionIdCall.value);
+  const market = Market.load(id);
+  if (market == null) {
+    // The underlying condition's ConditionPreparation wasn't indexed (outside
+    // our startBlock, or a same-block ordering edge case) — nothing to link.
+    return;
+  }
+
+  const noCall = adapter.try_getPositionId(questionId, false);
+  const yesCall = adapter.try_getPositionId(questionId, true);
+  if (noCall.reverted || yesCall.reverted) {
+    log.warning('NegRiskAdapter.getPositionId reverted for question {}', [questionId.toHexString()]);
+    return;
+  }
+
+  const noLookup = new TokenToOutcome(noCall.value.toString());
+  noLookup.market = id;
+  noLookup.outcomeIndex = 0;
+  noLookup.save();
+
+  const yesLookup = new TokenToOutcome(yesCall.value.toString());
+  yesLookup.market = id;
+  yesLookup.outcomeIndex = 1;
+  yesLookup.save();
+}
+
+export function handleOutcomeReported(event: OutcomeReported): void {
+  const questionId = event.params.questionId;
+  const adapter = NegRiskAdapter.bind(event.address);
+
+  const conditionIdCall = adapter.try_getConditionId(questionId);
+  if (conditionIdCall.reverted) {
+    log.warning('NegRiskAdapter.getConditionId reverted for question {}', [questionId.toHexString()]);
+    return;
+  }
+  const id = marketId(conditionIdCall.value);
+  const market = Market.load(id);
+  if (market == null) {
+    return;
+  }
+
+  const resolution = new Resolution(id);
+  resolution.market = id;
+  resolution.status = 'Resolved';
+  resolution.resolutionSource = event.address.toHexString();
+  resolution.winningOutcomeIndex = event.params.outcome ? 1 : 0;
+  resolution.finalizedAt = event.block.timestamp;
+  resolution.save();
 }

@@ -10,12 +10,14 @@ dataSources:
     source:
       address: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
       abi: ConditionalTokens
-      # ~21k blocks back from chain head (~90,871,656 as of 2026-07-25) — bounded
-      # in time, not by market. Originally set to ~2 weeks (startBlock 90267000)
-      # but at observed Studio sync throughput (~11 blocks/sec) that's a ~15h
-      # backfill; this smaller window matches what v0.0.2-verify proved converges
-      # in minutes. Widen only if there's real idle time before submission.
-      startBlock: 90850000
+      # ~4 days back from chain head (~90,877,864 as of 2026-07-26) — bounded in
+      # time. Widened from ~21k blocks (~15h) specifically to have a real chance
+      # of catching NegRiskAdapter's QuestionPrepared events (see NegRiskAdapter
+      # source below) — those are rare (10 in a ~5000 block sample vs. thousands
+      # of trades), so most currently-tradeable NegRisk questions were prepared
+      # well before any short window. At observed ~14 blocks/sec this is a
+      # ~2.5h backfill, not the ~15h-per-2-weeks math from the original window.
+      startBlock: 90705000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -46,7 +48,7 @@ dataSources:
     source:
       address: "0xE111180000d2663C0091e4f400237545B87B996B"
       abi: Exchange
-      startBlock: 90850000
+      startBlock: 90705000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -59,4 +61,59 @@ dataSources:
       eventHandlers:
         - event: OrderFilled(indexed bytes32,indexed address,indexed address,uint8,uint256,uint256,uint256,uint256,bytes32,bytes32)
           handler: handleOrderFilled
+      file: ./src/mapping.ts
+  - kind: ethereum/contract
+    name: NegRiskCtfExchange
+    # Weather/threshold markets settle here, not on the plain Exchange above —
+    # confirmed by decoding real logs: this address's dominant event (56k of
+    # 103k logs in one sample window) hashes to the exact same OrderFilled
+    # signature as the plain Exchange ABI, so it's reused as-is below. What's
+    # NOT reusable is token-id derivation — see NegRiskAdapter.
+    network: matic
+    source:
+      address: "0xe2222d279d744050d28e00520010520000310F59"
+      abi: Exchange
+      startBlock: 90705000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Outcome
+      abis:
+        - name: Exchange
+          file: ./abis/Exchange.json
+      eventHandlers:
+        - event: OrderFilled(indexed bytes32,indexed address,indexed address,uint8,uint256,uint256,uint256,uint256,bytes32,bytes32)
+          handler: handleOrderFilled
+      file: ./src/mapping.ts
+  - kind: ethereum/contract
+    name: NegRiskAdapter
+    # NegRisk (bundled/threshold) markets do NOT use CTF's plain
+    # getCollectionId/getPositionId derivation for their traded token ids —
+    # confirmed by computing both for a real market and getting a mismatch
+    # against Polymarket's actual reported clobTokenIds. The correct derivation
+    # lives here instead: getPositionId(questionId, outcome). questionId only
+    # comes from this contract's own QuestionPrepared event (rare — see the
+    # startBlock note above), not from anything on the plain CTF contract.
+    network: matic
+    source:
+      address: "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
+      abi: NegRiskAdapter
+      startBlock: 90705000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - TokenToOutcome
+        - Resolution
+      abis:
+        - name: NegRiskAdapter
+          file: ./abis/NegRiskAdapter.json
+      eventHandlers:
+        - event: QuestionPrepared(indexed bytes32,indexed bytes32,uint256,bytes)
+          handler: handleQuestionPrepared
+        - event: OutcomeReported(indexed bytes32,indexed bytes32,bool)
+          handler: handleOutcomeReported
       file: ./src/mapping.ts

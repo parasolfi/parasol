@@ -12,8 +12,8 @@ import { searchKalshiMarkets } from '../adapters/kalshi/kalshi.ts';
 import { getEnrichedMarkets, getSubgraphMeta, type EnrichedMarket } from '../merge/merge.ts';
 
 const SUBGRAPH_BASE = 'https://api.studio.thegraph.com/query/1756988';
-const POLYMARKET_SUBGRAPH = `${SUBGRAPH_BASE}/parasol-polymarket/v0.0.6`;
-const AZURO_SUBGRAPH = `${SUBGRAPH_BASE}/parasol-azuro/v0.0.4`;
+const POLYMARKET_SUBGRAPH = `${SUBGRAPH_BASE}/parasol-polymarket/v0.0.7`;
+const AZURO_SUBGRAPH = `${SUBGRAPH_BASE}/parasol-azuro/v0.0.5`;
 
 function printMarket(m: {
   question: string;

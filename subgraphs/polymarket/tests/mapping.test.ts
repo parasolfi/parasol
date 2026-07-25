@@ -12,9 +12,12 @@ import {
   handleConditionPreparation,
   handleConditionResolution,
   handleOrderFilled,
+  handleQuestionPrepared,
+  handleOutcomeReported,
 } from '../src/mapping';
 import { ConditionPreparation, ConditionResolution } from '../generated/ConditionalTokens/ConditionalTokens';
 import { OrderFilled } from '../generated/Exchange/Exchange';
+import { QuestionPrepared, OutcomeReported } from '../generated/NegRiskAdapter/NegRiskAdapter';
 
 const CTF_ADDRESS = Address.fromString('0x4D97DCd97eC945f40cF65F87097ACe5EA0476045');
 const USDC_ADDRESS = Address.fromString('0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174');
@@ -270,6 +273,120 @@ describe('handleConditionResolution', () => {
     handleConditionResolution(
       createConditionResolutionEvent([BigInt.fromI32(1), BigInt.zero()]),
     );
+
+    assert.entityCount('Resolution', 0);
+  });
+});
+
+const NEGRISK_ADAPTER = Address.fromString('0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296');
+const NEGRISK_QUESTION_ID = Bytes.fromHexString(
+  '0x3333333333333333333333333333333333333333333333333333333333333333',
+);
+const NEGRISK_NO_POSITION = BigInt.fromI32(444);
+const NEGRISK_YES_POSITION = BigInt.fromI32(555);
+
+function mockNegRiskAdapterCalls(): void {
+  createMockedFunction(NEGRISK_ADAPTER, 'getConditionId', 'getConditionId(bytes32):(bytes32)')
+    .withArgs([ethereum.Value.fromFixedBytes(NEGRISK_QUESTION_ID)])
+    .returns([ethereum.Value.fromFixedBytes(CONDITION_ID)]);
+
+  createMockedFunction(NEGRISK_ADAPTER, 'getPositionId', 'getPositionId(bytes32,bool):(uint256)')
+    .withArgs([ethereum.Value.fromFixedBytes(NEGRISK_QUESTION_ID), ethereum.Value.fromBoolean(false)])
+    .returns([ethereum.Value.fromUnsignedBigInt(NEGRISK_NO_POSITION)]);
+
+  createMockedFunction(NEGRISK_ADAPTER, 'getPositionId', 'getPositionId(bytes32,bool):(uint256)')
+    .withArgs([ethereum.Value.fromFixedBytes(NEGRISK_QUESTION_ID), ethereum.Value.fromBoolean(true)])
+    .returns([ethereum.Value.fromUnsignedBigInt(NEGRISK_YES_POSITION)]);
+}
+
+function createQuestionPreparedEvent(): QuestionPrepared {
+  const mock = newMockEvent();
+  mock.address = NEGRISK_ADAPTER;
+  const event = new QuestionPrepared(
+    mock.address,
+    mock.logIndex,
+    mock.transactionLogIndex,
+    mock.logType,
+    mock.block,
+    mock.transaction,
+    mock.parameters,
+    mock.receipt,
+  );
+  event.parameters = [
+    new ethereum.EventParam('marketId', ethereum.Value.fromFixedBytes(Bytes.fromI32(1))),
+    new ethereum.EventParam('questionId', ethereum.Value.fromFixedBytes(NEGRISK_QUESTION_ID)),
+    new ethereum.EventParam('index', ethereum.Value.fromUnsignedBigInt(BigInt.zero())),
+    new ethereum.EventParam('data', ethereum.Value.fromBytes(Bytes.empty())),
+  ];
+  return event;
+}
+
+function createOutcomeReportedEvent(outcome: boolean): OutcomeReported {
+  const mock = newMockEvent();
+  mock.address = NEGRISK_ADAPTER;
+  const event = new OutcomeReported(
+    mock.address,
+    mock.logIndex,
+    mock.transactionLogIndex,
+    mock.logType,
+    mock.block,
+    mock.transaction,
+    mock.parameters,
+    mock.receipt,
+  );
+  event.parameters = [
+    new ethereum.EventParam('marketId', ethereum.Value.fromFixedBytes(Bytes.fromI32(1))),
+    new ethereum.EventParam('questionId', ethereum.Value.fromFixedBytes(NEGRISK_QUESTION_ID)),
+    new ethereum.EventParam('outcome', ethereum.Value.fromBoolean(outcome)),
+  ];
+  return event;
+}
+
+describe('handleQuestionPrepared', () => {
+  afterEach(() => {
+    clearStore();
+  });
+
+  test('derives NegRisk-specific token ids via NegRiskAdapter, not plain CTF derivation', () => {
+    mockCtfCalls();
+    handleConditionPreparation(createConditionPreparationEvent());
+
+    mockNegRiskAdapterCalls();
+    handleQuestionPrepared(createQuestionPreparedEvent());
+
+    assert.fieldEquals('TokenToOutcome', NEGRISK_NO_POSITION.toString(), 'market', MARKET_ID);
+    assert.fieldEquals('TokenToOutcome', NEGRISK_NO_POSITION.toString(), 'outcomeIndex', '0');
+    assert.fieldEquals('TokenToOutcome', NEGRISK_YES_POSITION.toString(), 'outcomeIndex', '1');
+  });
+
+  test('question for an unindexed condition is a no-op', () => {
+    mockNegRiskAdapterCalls();
+    handleQuestionPrepared(createQuestionPreparedEvent());
+
+    assert.entityCount('TokenToOutcome', 0);
+  });
+});
+
+describe('handleOutcomeReported', () => {
+  afterEach(() => {
+    clearStore();
+  });
+
+  test('resolves the market via NegRiskAdapter question->condition mapping', () => {
+    mockCtfCalls();
+    handleConditionPreparation(createConditionPreparationEvent());
+
+    mockNegRiskAdapterCalls();
+    handleOutcomeReported(createOutcomeReportedEvent(true));
+
+    assert.fieldEquals('Resolution', MARKET_ID, 'status', 'Resolved');
+    assert.fieldEquals('Resolution', MARKET_ID, 'winningOutcomeIndex', '1');
+    assert.fieldEquals('Resolution', MARKET_ID, 'resolutionSource', NEGRISK_ADAPTER.toHexString());
+  });
+
+  test('outcome report for an unindexed condition is a no-op', () => {
+    mockNegRiskAdapterCalls();
+    handleOutcomeReported(createOutcomeReportedEvent(false));
 
     assert.entityCount('Resolution', 0);
   });
