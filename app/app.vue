@@ -1,5 +1,5 @@
 <template>
-  <div class="relative min-h-screen overflow-x-hidden bg-ink">
+  <div class="relative min-h-screen overflow-x-hidden bg-canvas">
     <NuxtRouteAnnouncer />
     <AppHeader />
     <NuxtPage />

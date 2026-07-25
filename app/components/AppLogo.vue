@@ -14,9 +14,9 @@ withDefaults(defineProps<{ size?: number }>(), { size: 28 })
   >
     <defs>
       <linearGradient id="parasol-dome" x1="4" y1="25" x2="28" y2="7" gradientUnits="userSpaceOnUse">
-        <stop stop-color="#1d4f7a" />
-        <stop offset="0.55" stop-color="#3aa9b6" />
-        <stop offset="1" stop-color="#c6f4cf" />
+        <stop stop-color="#0d2447" />
+        <stop offset="0.55" stop-color="#1d4f7a" />
+        <stop offset="1" stop-color="#3aa9b6" />
       </linearGradient>
     </defs>
     <path
@@ -27,11 +27,11 @@ withDefaults(defineProps<{ size?: number }>(), { size: 28 })
     />
     <path
       d="M9.5 25a6.5 6.5 0 0 1 13 0"
-      stroke="#7bd9b8"
+      stroke="#3aa9b6"
       stroke-width="2.25"
       stroke-linecap="round"
       opacity="0.75"
     />
-    <circle cx="16" cy="25" r="1.75" fill="#c6f4cf" />
+    <circle cx="16" cy="25" r="1.75" fill="#1d4f7a" />
   </svg>
 </template>

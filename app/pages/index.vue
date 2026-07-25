@@ -74,24 +74,47 @@ const stack = [
 <template>
   <main id="top">
     <section class="relative flex min-h-screen items-center overflow-hidden">
-      <MeshGradient :intensity="0.95" :scale="0.9" />
-      <div class="absolute inset-0 bg-linear-to-b from-ink/40 via-transparent to-ink" />
-      <div class="absolute inset-0 bg-linear-to-r from-ink/75 via-ink/15 to-transparent" />
+      <AsciiVideo
+        src="/ocean.mp4"
+        :cell-size="14"
+        invert
+        :color="false"
+        :postfx="{
+          colorPalette: 5,
+          contrastAdjust: 1.25,
+          vignetteIntensity: 0.55,
+          vignetteRadius: 2.2,
+        }"
+      />
+      <div class="absolute inset-0 bg-linear-to-b from-canvas/60 via-transparent to-canvas" />
+      <div
+        class="absolute inset-0"
+        style="
+          background: linear-gradient(
+            95deg,
+            var(--color-canvas) 0%,
+            var(--color-canvas) 34%,
+            color-mix(in oklab, var(--color-canvas) 82%, transparent) 48%,
+            transparent 74%
+          );
+        "
+      />
+      <div class="absolute inset-0 bg-canvas/78 lg:hidden" />
 
       <div class="relative mx-auto w-full max-w-6xl px-6 pt-32 pb-24">
-        <p class="rise text-xs uppercase tracking-[0.28em] text-mint/80">
+        <p class="rise text-xs uppercase tracking-[0.28em] text-teal">
           Parametric cover · Polygon
         </p>
 
         <h1
-          class="rise mt-8 max-w-4xl font-display text-hero leading-[0.95] tracking-tight text-white text-glow"
+          class="rise mt-8 max-w-4xl font-display text-hero leading-[0.95] tracking-tight text-ink"
           style="animation-delay: 80ms"
         >
           If it can be measured,<br />it can be insured.
         </h1>
 
         <p
-          class="rise mt-8 max-w-xl text-lg leading-relaxed text-white/65"
+          class="rise mt-8 max-w-xl text-lg leading-relaxed text-ink/65"
           style="animation-delay: 160ms"
         >
           Rain on your festival. A flight that never leaves. An energy bill that triples. Name the
@@ -102,45 +125,45 @@ const stack = [
         <div class="rise mt-10 flex flex-wrap gap-3" style="animation-delay: 240ms">
           <a
             href="#quote"
-            class="rounded-full bg-white px-7 py-3.5 font-medium text-ink transition-transform hover:scale-[1.03]"
+            class="rounded-full bg-ink px-7 py-3.5 font-medium text-canvas transition-transform hover:scale-[1.03]"
           >
             Price my risk
           </a>
           <a
             href="#how"
-            class="rounded-full border border-white/20 px-7 py-3.5 font-medium text-white/80 transition-colors hover:border-white/45 hover:text-white"
+            class="rounded-full border border-ink/15 px-7 py-3.5 font-medium text-ink/70 transition-colors hover:border-ink/40 hover:text-ink"
           >
             How it works
           </a>
         </div>
 
         <dl
-          class="rise mt-16 grid max-w-2xl grid-cols-2 gap-8 border-t border-white/10 pt-8 sm:grid-cols-3"
+          class="rise mt-16 grid max-w-2xl grid-cols-2 gap-8 border-t border-ink/10 pt-8 sm:grid-cols-3"
           style="animation-delay: 320ms"
         >
           <div>
-            <dt class="font-display text-3xl text-pale">Minutes</dt>
-            <dd class="mt-1 text-sm text-white/45">from event to payout</dd>
+            <dt class="font-display text-3xl text-ocean">Minutes</dt>
+            <dd class="mt-1 text-sm text-ink/45">from event to payout</dd>
           </div>
           <div>
-            <dt class="font-display text-3xl text-pale">100%</dt>
-            <dd class="mt-1 text-sm text-white/45">of payouts escrowed up front</dd>
+            <dt class="font-display text-3xl text-ocean">100%</dt>
+            <dd class="mt-1 text-sm text-ink/45">of payouts escrowed up front</dd>
           </div>
           <div>
-            <dt class="font-display text-3xl text-pale">Zero</dt>
-            <dd class="mt-1 text-sm text-white/45">claims forms, ever</dd>
+            <dt class="font-display text-3xl text-ocean">Zero</dt>
+            <dd class="mt-1 text-sm text-ink/45">claims forms, ever</dd>
           </div>
         </dl>
       </div>
     </section>
 
-    <section id="cover" class="relative scroll-mt-24 border-y border-white/6 bg-ink-soft">
+    <section id="cover" class="relative scroll-mt-24 border-y border-ink/8 bg-canvas-soft">
       <div class="mx-auto max-w-6xl px-6 py-28 lg:py-36">
-        <p class="text-xs uppercase tracking-[0.28em] text-mint/70">What people cover</p>
-        <h2 class="mt-6 max-w-3xl font-display text-section leading-tight text-white">
+        <p class="text-xs uppercase tracking-[0.28em] text-teal">What people cover</p>
+        <h2 class="mt-6 max-w-3xl font-display text-section leading-tight text-ink">
           Insurance stops at what an insurer feels like selling. This does not.
         </h2>
-        <p class="mt-6 max-w-xl text-lg leading-relaxed text-white/55">
+        <p class="mt-6 max-w-xl text-lg leading-relaxed text-ink/60">
           Any event a public source can settle can become a market. Some of them already exist; the
           rest are one underwriter away.
         </p>
@@ -149,7 +172,7 @@ const stack = [
           <li v-for="item in coverable" :key="item.tag">
             <p class="text-xs uppercase tracking-[0.2em] text-teal">{{ item.tag }}</p>
             <div class="rule-fade mt-4 h-px w-full" />
-            <p class="mt-4 leading-relaxed text-white/60">{{ item.example }}</p>
+            <p class="mt-4 leading-relaxed text-ink/65">{{ item.example }}</p>
           </li>
         </ul>
       </div>
@@ -158,15 +181,15 @@ const stack = [
     <section id="quote" class="relative mx-auto max-w-6xl scroll-mt-24 px-6 py-28 lg:py-36">
       <div class="grid items-center gap-14 lg:grid-cols-2">
         <div>
-          <p class="text-xs uppercase tracking-[0.28em] text-mint/70">The quote</p>
-          <h2 class="mt-6 font-display text-section leading-tight text-white">
+          <p class="text-xs uppercase tracking-[0.28em] text-teal">The quote</p>
+          <h2 class="mt-6 font-display text-section leading-tight text-ink">
             Every risk has a price. Here is yours.
           </h2>
-          <p class="mt-6 max-w-md text-lg leading-relaxed text-white/55">
+          <p class="mt-6 max-w-md text-lg leading-relaxed text-ink/60">
             A cover is a simple bet against an event, and the market quotes it live. Move the dials
             and watch the premium follow the odds.
           </p>
-          <p class="mt-6 max-w-md text-white/40">
+          <p class="mt-6 max-w-md text-ink/45">
             The same machinery prices a wet Saturday, a late plane and a spike in power. Only the
             number being watched changes.
           </p>
@@ -176,86 +199,86 @@ const stack = [
       </div>
     </section>
 
-    <section id="how" class="relative scroll-mt-24 border-y border-white/6 bg-ink-soft">
+    <section id="how" class="relative scroll-mt-24 border-y border-ink/8 bg-canvas-soft">
       <div class="mx-auto max-w-6xl px-6 py-28 lg:py-36">
-        <p class="text-xs uppercase tracking-[0.28em] text-mint/70">How it works</p>
-        <h2 class="mt-6 max-w-2xl font-display text-section leading-tight text-white">
+        <p class="text-xs uppercase tracking-[0.28em] text-teal">How it works</p>
+        <h2 class="mt-6 max-w-2xl font-display text-section leading-tight text-ink">
           Three steps, and one of them is just waiting.
         </h2>
 
         <ol class="mt-16 grid gap-12 md:grid-cols-3">
           <li v-for="step in steps" :key="step.number">
-            <span class="font-display text-5xl text-teal/50">{{ step.number }}</span>
+            <span class="font-display text-5xl text-teal">{{ step.number }}</span>
             <div class="rule-fade mt-6 h-px w-full" />
-            <h3 class="mt-6 text-xl text-white">{{ step.title }}</h3>
-            <p class="mt-3 leading-relaxed text-white/50">{{ step.body }}</p>
+            <h3 class="mt-6 text-xl text-ink">{{ step.title }}</h3>
+            <p class="mt-3 leading-relaxed text-ink/60">{{ step.body }}</p>
           </li>
         </ol>
       </div>
     </section>
 
     <section id="why" class="relative mx-auto max-w-6xl scroll-mt-24 px-6 py-28 lg:py-36">
-      <p class="text-xs uppercase tracking-[0.28em] text-mint/70">Why it pays</p>
-      <h2 class="mt-6 max-w-3xl font-display text-section leading-tight text-white">
+      <p class="text-xs uppercase tracking-[0.28em] text-teal">Why it pays</p>
+      <h2 class="mt-6 max-w-3xl font-display text-section leading-tight text-ink">
         Insurance usually fails you at the worst moment. This cannot.
       </h2>
 
-      <div class="mt-16 grid gap-px overflow-hidden rounded-3xl border border-white/8 bg-white/8 sm:grid-cols-2">
-        <article v-for="item in differences" :key="item.title" class="bg-ink p-8 lg:p-10">
-          <h3 class="font-display text-2xl text-pale">{{ item.title }}</h3>
-          <p class="mt-4 leading-relaxed text-white/50">{{ item.body }}</p>
+      <div class="mt-16 grid gap-px overflow-hidden rounded-3xl border border-ink/10 bg-ink/10 sm:grid-cols-2">
+        <article v-for="item in differences" :key="item.title" class="bg-canvas p-8 lg:p-10">
+          <h3 class="font-display text-2xl text-ocean">{{ item.title }}</h3>
+          <p class="mt-4 leading-relaxed text-ink/60">{{ item.body }}</p>
         </article>
       </div>
     </section>
 
-    <section id="underwrite" class="relative scroll-mt-24 overflow-hidden border-y border-white/6">
-      <MeshGradient :intensity="0.35" :scale="1.6" :speed="0.6" />
+    <section id="underwrite" class="relative scroll-mt-24 overflow-hidden border-y border-ink/8">
+      <MeshGradient :intensity="0.22" :scale="1.6" :speed="0.6" />
       <div class="relative mx-auto grid max-w-6xl gap-14 px-6 py-28 lg:grid-cols-2 lg:py-36">
         <div>
-          <p class="text-xs uppercase tracking-[0.28em] text-mint/70">The other side</p>
-          <h2 class="mt-6 font-display text-section leading-tight text-white">
+          <p class="text-xs uppercase tracking-[0.28em] text-teal">The other side</p>
+          <h2 class="mt-6 font-display text-section leading-tight text-ink">
             Someone has to bet it will be fine.
           </h2>
-          <p class="mt-6 max-w-md text-lg leading-relaxed text-white/60">
+          <p class="mt-6 max-w-md text-lg leading-relaxed text-ink/65">
             That someone can be you. Post collateral, cover other people's bad days, and keep the
             premiums when the event never comes. Your risk is capped at what you put in — never a cent
             more.
           </p>
           <a
             href="#quote"
-            class="mt-10 inline-flex rounded-full border border-mint/40 bg-mint/10 px-7 py-3.5 font-medium text-pale transition-colors hover:bg-mint/20"
+            class="mt-10 inline-flex rounded-full border border-ocean/25 bg-canvas/70 px-7 py-3.5 font-medium text-ocean transition-colors hover:bg-canvas"
           >
             Underwrite a market
           </a>
         </div>
 
         <div class="surface rounded-3xl p-8 lg:p-10">
-          <h3 class="text-xs uppercase tracking-[0.28em] text-white/40">Under the hood</h3>
-          <p class="mt-6 leading-relaxed text-white/60">
+          <h3 class="text-xs uppercase tracking-[0.28em] text-ink/40">Under the hood</h3>
+          <p class="mt-6 leading-relaxed text-ink/65">
             Underwriters are liquidity providers in a Uniswap v4 pool. Buying cover is a swap against
             that pool, so the price of protection is just the price of the asset — set by the market,
             second by second.
           </p>
-          <p class="mt-4 leading-relaxed text-white/60">
+          <p class="mt-4 leading-relaxed text-ink/65">
             Collateral is split into paired outcome tokens before any cover is sold. Whichever way the
             event goes, the winning side is already fully funded on-chain.
           </p>
-          <dl class="mt-8 grid grid-cols-2 gap-6 border-t border-white/10 pt-6 text-sm">
+          <dl class="mt-8 grid grid-cols-2 gap-6 border-t border-ink/10 pt-6 text-sm">
             <div>
-              <dt class="text-white/40">Capital model</dt>
-              <dd class="mt-1 text-pale">Fully funded</dd>
+              <dt class="text-ink/40">Capital model</dt>
+              <dd class="mt-1 text-ocean">Fully funded</dd>
             </div>
             <div>
-              <dt class="text-white/40">Custody</dt>
-              <dd class="mt-1 text-pale">None. Ever.</dd>
+              <dt class="text-ink/40">Custody</dt>
+              <dd class="mt-1 text-ocean">None. Ever.</dd>
             </div>
             <div>
-              <dt class="text-white/40">Settlement</dt>
-              <dd class="mt-1 text-pale">Public data source</dd>
+              <dt class="text-ink/40">Settlement</dt>
+              <dd class="mt-1 text-ocean">Public data source</dd>
             </div>
             <div>
-              <dt class="text-white/40">Downside</dt>
-              <dd class="mt-1 text-pale">Capped at collateral</dd>
+              <dt class="text-ink/40">Downside</dt>
+              <dd class="mt-1 text-ocean">Capped at collateral</dd>
             </div>
           </dl>
         </div>
@@ -263,17 +286,17 @@ const stack = [
     </section>
 
     <section class="mx-auto max-w-6xl px-6 py-24">
-      <p class="text-xs uppercase tracking-[0.28em] text-white/30">Built on</p>
+      <p class="text-xs uppercase tracking-[0.28em] text-ink/35">Built on</p>
       <div class="mt-10 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div v-for="item in stack" :key="item.name">
-          <p class="font-display text-2xl text-white">{{ item.name }}</p>
-          <p class="mt-2 text-sm text-white/40">{{ item.role }}</p>
+          <p class="font-display text-2xl text-ink">{{ item.name }}</p>
+          <p class="mt-2 text-sm text-ink/45">{{ item.role }}</p>
         </div>
       </div>
     </section>
 
     <section id="faq" class="mx-auto max-w-4xl scroll-mt-24 px-6 py-24 lg:py-32">
-      <h2 class="font-display text-section leading-tight text-white">Reasonable questions.</h2>
+      <h2 class="font-display text-section leading-tight text-ink">Reasonable questions.</h2>
 
       <div class="mt-12">
         <FaqItem question="What counts as the event actually happening?">
@@ -304,25 +327,14 @@ const stack = [
       </div>
     </section>
 
-    <section class="relative overflow-hidden">
-      <div
-        class="pointer-events-none absolute inset-0"
-        style="
-          background: radial-gradient(
-            55% 60% at 50% 55%,
-            rgba(58, 169, 182, 0.22),
-            rgba(13, 36, 71, 0.12) 45%,
-            transparent 75%
-          );
-        "
-      />
+    <section class="relative overflow-hidden border-t border-ink/8 bg-canvas-soft">
       <div class="relative mx-auto max-w-4xl px-6 py-28 text-center lg:py-36">
-        <h2 class="font-display text-section leading-tight text-white">
+        <h2 class="font-display text-section leading-tight text-ink">
           Name the thing that would ruin it.
         </h2>
         <a
           href="#quote"
-          class="mt-10 inline-flex rounded-full bg-linear-to-r from-teal to-mint px-8 py-4 font-medium text-ink transition-transform hover:scale-[1.03]"
+          class="mt-10 inline-flex rounded-full bg-ink px-8 py-4 font-medium text-canvas transition-transform hover:scale-[1.03]"
         >
           Price my risk
         </a>

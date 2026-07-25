@@ -70,13 +70,13 @@ const outcome = computed(() => market.value.outcome.replace('{threshold}', thres
 <template>
   <div class="surface rounded-3xl p-6 sm:p-8">
     <div class="flex items-baseline justify-between gap-4">
-      <h3 class="font-display text-2xl text-white">Price a risk</h3>
-      <span class="text-xs uppercase tracking-[0.18em] text-mint/70">Demo pricing</span>
+      <h3 class="font-display text-2xl text-ink">Price a risk</h3>
+      <span class="text-xs uppercase tracking-[0.18em] text-teal">Demo pricing</span>
     </div>
 
     <div class="mt-7 space-y-6">
       <fieldset>
-        <legend class="text-xs uppercase tracking-[0.18em] text-white/40">What worries you</legend>
+        <legend class="text-xs uppercase tracking-[0.18em] text-ink/40">What worries you</legend>
         <div class="mt-3 flex flex-wrap gap-2">
           <button
             v-for="option in markets"
@@ -85,8 +85,8 @@ const outcome = computed(() => market.value.outcome.replace('{threshold}', thres
             class="rounded-full border px-4 py-2 text-sm transition-colors"
             :class="
               market.name === option.name
-                ? 'border-mint/70 bg-mint/15 text-pale'
-                : 'border-white/10 text-white/55 hover:border-white/25 hover:text-white/80'
+                ? 'border-teal/60 bg-teal/10 text-ocean'
+                : 'border-ink/10 text-ink/55 hover:border-ink/25 hover:text-ink/80'
             "
             @click="market = option"
           >
@@ -96,7 +96,7 @@ const outcome = computed(() => market.value.outcome.replace('{threshold}', thres
       </fieldset>
 
       <fieldset>
-        <legend class="text-xs uppercase tracking-[0.18em] text-white/40">How long</legend>
+        <legend class="text-xs uppercase tracking-[0.18em] text-ink/40">How long</legend>
         <div class="mt-3 flex flex-wrap gap-2">
           <button
             v-for="option in windows"
@@ -105,8 +105,8 @@ const outcome = computed(() => market.value.outcome.replace('{threshold}', thres
             class="rounded-full border px-4 py-2 text-sm transition-colors"
             :class="
               window_.label === option.label
-                ? 'border-mint/70 bg-mint/15 text-pale'
-                : 'border-white/10 text-white/55 hover:border-white/25 hover:text-white/80'
+                ? 'border-teal/60 bg-teal/10 text-ocean'
+                : 'border-ink/10 text-ink/55 hover:border-ink/25 hover:text-ink/80'
             "
             @click="window_ = option"
           >
@@ -116,7 +116,7 @@ const outcome = computed(() => market.value.outcome.replace('{threshold}', thres
       </fieldset>
 
       <fieldset>
-        <legend class="text-xs uppercase tracking-[0.18em] text-white/40">Pays out above</legend>
+        <legend class="text-xs uppercase tracking-[0.18em] text-ink/40">Pays out above</legend>
         <div class="mt-3 grid gap-2 sm:grid-cols-3">
           <button
             v-for="(option, index) in market.thresholds"
@@ -125,21 +125,21 @@ const outcome = computed(() => market.value.outcome.replace('{threshold}', thres
             class="rounded-2xl border px-4 py-3 text-left transition-colors"
             :class="
               thresholdIndex === index
-                ? 'border-mint/70 bg-mint/10'
-                : 'border-white/10 hover:border-white/25'
+                ? 'border-teal/60 bg-teal/8'
+                : 'border-ink/10 hover:border-ink/25'
             "
             @click="thresholdIndex = index"
           >
-            <span class="block text-sm text-white">{{ option.label }}</span>
-            <span class="block text-xs text-white/45">{{ option.hint }}</span>
+            <span class="block text-sm text-ink">{{ option.label }}</span>
+            <span class="block text-xs text-ink/45">{{ option.hint }}</span>
           </button>
         </div>
       </fieldset>
 
       <fieldset>
         <div class="flex items-baseline justify-between">
-          <legend class="text-xs uppercase tracking-[0.18em] text-white/40">If it happens, you get</legend>
-          <span class="font-display text-2xl text-pale">€{{ payout }}</span>
+          <legend class="text-xs uppercase tracking-[0.18em] text-ink/40">If it happens, you get</legend>
+          <span class="font-display text-2xl text-ocean">€{{ payout }}</span>
         </div>
         <input
           v-model.number="payout"
@@ -148,18 +148,18 @@ const outcome = computed(() => market.value.outcome.replace('{threshold}', thres
           max="2000"
           step="50"
           aria-label="Payout amount in euros"
-          class="mt-4 h-1 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-mint"
+          class="mt-4 h-1 w-full cursor-pointer appearance-none rounded-full bg-ink/12 accent-teal"
         />
       </fieldset>
     </div>
 
-    <div class="mt-8 border-t border-white/10 pt-6">
+    <div class="mt-8 border-t border-ink/10 pt-6">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-white/40">Your premium</p>
-          <p class="font-display text-5xl text-white">€{{ premium }}</p>
+          <p class="text-xs uppercase tracking-[0.18em] text-ink/40">Your premium</p>
+          <p class="font-display text-5xl text-ink">€{{ premium }}</p>
         </div>
-        <p class="max-w-[15rem] text-sm text-white/50">
+        <p class="max-w-[15rem] text-sm text-ink/50">
           The market puts {{ impliedOdds }}% odds on {{ outcome }}.
         </p>
       </div>
@@ -170,7 +170,7 @@ const outcome = computed(() => market.value.outcome.replace('{threshold}', thres
       >
         Get covered
       </button>
-      <p class="mt-3 text-center text-xs text-white/35">
+      <p class="mt-3 text-center text-xs text-ink/35">
         Illustrative numbers. Live markets are priced and settled on-chain.
       </p>
     </div>

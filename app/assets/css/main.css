@@ -1,8 +1,9 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-ink: #05070c;
-  --color-ink-soft: #0a1018;
+  --color-canvas: #ffffff;
+  --color-canvas-soft: #f1f6f6;
+  --color-ink: #08172b;
   --color-deep: #0d2447;
   --color-ocean: #1d4f7a;
   --color-teal: #3aa9b6;
@@ -22,8 +23,8 @@
   }
 
   body {
-    background-color: var(--color-ink);
-    color: color-mix(in oklab, var(--color-pale) 92%, white);
+    background-color: var(--color-canvas);
+    color: color-mix(in oklab, var(--color-ink) 78%, white);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -35,30 +36,24 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-mint);
+    outline: 2px solid var(--color-teal);
     outline-offset: 3px;
   }
 }
 
 @utility surface {
-  background: linear-gradient(
-    150deg,
-    color-mix(in oklab, var(--color-ocean) 16%, transparent),
-    color-mix(in oklab, var(--color-ink) 70%, transparent)
-  );
-  border: 1px solid color-mix(in oklab, var(--color-teal) 22%, transparent);
+  background: color-mix(in oklab, var(--color-canvas) 82%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-ocean) 14%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, var(--color-deep) 6%, transparent),
+    0 24px 60px -30px color-mix(in oklab, var(--color-ocean) 35%, transparent);
   backdrop-filter: blur(18px);
-}
-
-@utility text-glow {
-  text-shadow: 0 0 60px color-mix(in oklab, var(--color-teal) 45%, transparent);
 }
 
 @utility rule-fade {
   background: linear-gradient(
     90deg,
-    transparent,
-    color-mix(in oklab, var(--color-teal) 35%, transparent),
+    color-mix(in oklab, var(--color-ocean) 30%, transparent),
     transparent
   );
 }
