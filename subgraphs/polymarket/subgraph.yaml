@@ -46,7 +46,7 @@ dataSources:
     source:
       address: "0xE111180000d2663C0091e4f400237545B87B996B"
       abi: Exchange
-      startBlock: 90267000
+      startBlock: 90850000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
