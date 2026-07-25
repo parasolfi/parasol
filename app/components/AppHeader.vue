@@ -1,9 +1,9 @@
 <script setup lang="ts">
 const links = [
-  { label: 'What you can cover', href: '#cover' },
-  { label: 'How it works', href: '#how' },
-  { label: 'Underwriters', href: '#underwrite' },
-  { label: 'FAQ', href: '#faq' },
+  { label: 'What you can cover', href: '/#cover' },
+  { label: 'How it works', href: '/#how' },
+  { label: 'Underwriters', href: '/#underwrite' },
+  { label: 'FAQ', href: '/#faq' },
 ]
 
 const scrolled = ref(false)
@@ -23,7 +23,7 @@ onMounted(() => {
     :class="scrolled ? 'border-b border-ink/8 bg-canvas/80 backdrop-blur-xl' : ''"
   >
     <nav class="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-5">
-      <a href="#top" class="flex items-center gap-2.5">
+      <a href="/#top" class="flex items-center gap-2.5">
         <AppLogo />
         <span class="font-display text-xl tracking-tight text-ink">Parasol</span>
       </a>
@@ -36,7 +36,7 @@ onMounted(() => {
 
       <div class="flex items-center gap-3">
         <a
-          href="#quote"
+          href="/cover"
           class="rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-canvas transition-transform hover:scale-[1.03]"
         >
           Get a quote
