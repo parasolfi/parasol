@@ -32,15 +32,26 @@ interface Policy {
   chain: { network: string; registry: string; txHash: string } | null
 }
 
+interface Alternative {
+  id: string
+  question: string
+  date: string
+  premiumUsdc: number
+}
+
 const messages = ref<ChatMessage[]>([])
 const draft = ref('')
 const thinking = ref(false)
 const agentSource = ref<'zg-router' | 'mock' | null>(null)
 const quote = ref<Quote | null>(null)
 const exposure = ref<Exposure | null>(null)
+const alternatives = ref<Alternative[]>([])
 const holder = ref('')
+const manualEntry = ref(false)
 const buying = ref(false)
 const buyError = ref('')
+
+const shortHolder = computed(() => (holder.value ? `${holder.value.slice(0, 6)}…${holder.value.slice(-4)}` : ''))
 const { data: policiesData, refresh: refreshPolicies } = useFetch<{ policies: Policy[] }>('/api/policies')
 
 const statusLabel: Record<string, string> = {
@@ -57,7 +68,7 @@ async function send() {
   draft.value = ''
   thinking.value = true
   try {
-    const res = await $fetch<{ reply: string; exposure: Exposure | null; source: 'zg-router' | 'mock'; quote: Quote | null }>(
+    const res = await $fetch<{ reply: string; exposure: Exposure | null; source: 'zg-router' | 'mock'; quote: Quote | null; alternatives: Alternative[] }>(
       '/api/agent',
       { method: 'POST', body: { messages: messages.value } },
     )
@@ -66,6 +77,7 @@ async function send() {
     if (res.quote) {
       quote.value = res.quote
       exposure.value = res.exposure
+      alternatives.value = res.alternatives ?? []
     }
   } catch {
     messages.value.push({ role: 'assistant', content: 'Something went wrong on my side — say that again?' })
@@ -76,9 +88,28 @@ async function send() {
 
 async function connectWallet() {
   const eth = (window as any).ethereum
-  if (!eth) return
+  if (!eth) {
+    manualEntry.value = true
+    return
+  }
   const accounts = await eth.request({ method: 'eth_requestAccounts' })
   if (accounts?.[0]) holder.value = accounts[0]
+}
+
+async function switchOption(alt: Alternative) {
+  if (!exposure.value) return
+  const res = await $fetch<{ option: Quote['option']; basket: Quote['basket'] }>('/api/quote', {
+    method: 'POST',
+    body: { optionId: alt.id, thresholdC: exposure.value.threshold, payoutUsdc: exposure.value.payoutUsdc },
+  })
+  const previous = quote.value
+  quote.value = res
+  exposure.value = { ...exposure.value, optionId: alt.id }
+  if (previous)
+    alternatives.value = [
+      { id: previous.option.id, question: previous.option.question, date: previous.option.date, premiumUsdc: previous.basket.premiumUsdc },
+      ...alternatives.value.filter((a) => a.id !== alt.id),
+    ]
 }
 
 async function buy() {
@@ -98,6 +129,7 @@ async function buy() {
     })
     quote.value = null
     exposure.value = null
+    alternatives.value = []
     await refreshPolicies()
   } catch (err: any) {
     buyError.value = err?.data?.statusMessage ?? 'execution failed'
@@ -171,17 +203,40 @@ async function buy() {
               <div class="flex justify-between"><dt class="text-ink/45">Positions</dt><dd class="text-ink">{{ quote.basket.signatureCount }} market{{ quote.basket.signatureCount > 1 ? 's' : '' }}</dd></div>
             </dl>
 
-            <div class="mt-5 border-t border-ink/10 pt-4">
-              <div class="flex gap-2">
-                <input
-                  v-model="holder"
-                  type="text"
-                  placeholder="0x… your wallet"
-                  class="flex-1 rounded-full border border-ink/10 bg-canvas px-4 py-2.5 text-xs text-ink placeholder:text-ink/30 focus:border-teal/60 focus:outline-none"
-                />
-                <button type="button" class="rounded-full border border-ink/15 px-4 py-2.5 text-xs text-ink/70 hover:border-ink/30" @click="connectWallet">
-                  Connect
+            <div v-if="alternatives.length" class="mt-4">
+              <p class="text-xs uppercase tracking-[0.18em] text-ink/40">Other windows</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <button
+                  v-for="alt in alternatives"
+                  :key="alt.id"
+                  type="button"
+                  class="rounded-full border border-ink/10 px-3 py-1.5 text-xs text-ink/60 hover:border-teal/50 hover:text-ocean"
+                  @click="switchOption(alt)"
+                >
+                  {{ alt.date }} · ${{ alt.premiumUsdc }}
                 </button>
+              </div>
+            </div>
+
+            <div class="mt-5 border-t border-ink/10 pt-4">
+              <div v-if="!holder && !manualEntry">
+                <button type="button" class="w-full rounded-full border border-ink/15 px-4 py-2.5 text-sm text-ink/80 hover:border-ink/35" @click="connectWallet">
+                  Connect wallet
+                </button>
+                <button type="button" class="mt-1.5 w-full text-center text-xs text-ink/35 hover:text-ink/60" @click="manualEntry = true">
+                  or paste an address
+                </button>
+              </div>
+              <input
+                v-else-if="!holder"
+                v-model="holder"
+                type="text"
+                placeholder="0x…"
+                class="w-full rounded-full border border-ink/10 bg-canvas px-4 py-2.5 text-xs text-ink placeholder:text-ink/30 focus:border-teal/60 focus:outline-none"
+              />
+              <div v-else class="flex items-center justify-between rounded-full bg-canvas-soft px-4 py-2">
+                <span class="text-xs text-ink/70">{{ shortHolder }}</span>
+                <button type="button" class="text-xs text-ink/40 hover:text-ink/70" @click="holder = ''; manualEntry = false">change</button>
               </div>
               <button
                 type="button"

@@ -79,21 +79,62 @@ async function callRouter(messages: ChatMessage[], apiKey: string): Promise<stri
   return content
 }
 
-// Keeps the demo alive with no key or a dead Router: scripted interview,
-// deterministic pick. Same shape, flagged source so the UI can label it.
+// Keeps the demo alive with no key or a dead Router: a scripted interview
+// that actually reads the client's answers — city, threshold, cost — asks
+// for what is missing, proposes once, then points at the quote card.
 function mockTurn(history: ChatMessage[], options: CoverOption[]): AgentTurn {
-  const userTurns = history.filter((m) => m.role === 'user').length
-  const pick = options.find((o) => o.city === 'Madrid' && o.peril === 'heat') ?? options[0]
-  if (userTurns < 2 || !pick)
+  const userText = history.filter((m) => m.role === 'user').map((m) => m.content).join(' ')
+  const alreadyProposed = history.some((m) => m.role === 'assistant' && m.content.includes('Here is the cover'))
+
+  const heatOptions = options.filter((o) => o.peril === 'heat')
+  const pick = heatOptions.find((o) => new RegExp(`\\b${o.city}\\b`, 'i').test(userText)) ?? null
+  const tempMatch = userText.match(/(?:above|over|beyond|past|reaches|au-dessus de|plus de)\s*(\d{1,3})|(\d{1,3})\s*°/i)
+  const costMatch = userText.match(/[$€]\s*(\d{2,5})|(\d{2,5})\s*(?:\$|€|dollars?|euros?|usd)/i)
+
+  if (!pick) {
+    const cities = [...new Set(heatOptions.map((o) => o.city))].slice(0, 6).join(', ')
     return {
-      reply: "Tell me about your business — what do you do, in which city, and what kind of weather ruins a day for you?",
+      reply: `Got it. Which city are you in? I can currently cover daily temperature in: ${cities}.`,
       exposure: null,
       source: 'mock',
     }
-  const threshold = singleOrderThreshold(pick) ?? pick.buckets[pick.buckets.length - 1]!.thresholdDeg!
+  }
+  if (!tempMatch) {
+    return {
+      reply: `${pick.city} — noted. At what temperature does the day start hurting your business? For reference, the market covers ${pick.question.toLowerCase().replace('?', '')}.`,
+      exposure: null,
+      source: 'mock',
+    }
+  }
+  if (!costMatch) {
+    return {
+      reply: 'Last one: roughly how much money does such a day cost you, in dollars? That sets your payout.',
+      exposure: null,
+      source: 'mock',
+    }
+  }
+
+  const degs = pick.buckets.filter((b) => b.thresholdDeg !== null).map((b) => b.thresholdDeg!)
+  const rawThreshold = parseInt(tempMatch[1] ?? tempMatch[2]!, 10)
+  const threshold = Math.min(Math.max(rawThreshold, Math.min(...degs)), Math.max(...degs))
+  const payoutUsdc = Math.min(Math.max(parseInt(costMatch[1] ?? costMatch[2]!, 10), 50), 10_000)
+  const exposure = {
+    optionId: pick.id,
+    threshold,
+    payoutUsdc,
+    rationale: `revenue exposed above ${threshold}°${pick.unit} in ${pick.city}`,
+  }
+
+  if (alreadyProposed) {
+    return {
+      reply: 'Your quote is ready on the right — connect your wallet and hit "Cover me" to execute it.',
+      exposure,
+      source: 'mock',
+    }
+  }
   return {
-    reply: `Here is what I suggest: cover on "${pick.question}" paying out if the day reaches ${threshold}°${pick.unit} or more.`,
-    exposure: { optionId: pick.id, threshold, payoutUsdc: 500, rationale: 'outdoor revenue exposed to extreme heat' },
+    reply: `Here is the cover: "${pick.question}" paying $${payoutUsdc} if the day reaches ${threshold}°${pick.unit} or more. The premium is the market's own odds times your payout — check the card on the right.`,
+    exposure,
     source: 'mock',
   }
 }
