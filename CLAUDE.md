@@ -60,7 +60,12 @@ blend of five orbiting colour points, simplex domain warp, film grain. Constants
 - Output alpha is the radial falloff, so the canvas fades into whatever sits behind it.
 - A CSS radial-gradient fallback shows if WebGL is unavailable; `live` swaps between them.
 
-**`AsciiVideo.vue`** (hero) renders a video through an ASCII shader ported from an Efecto export.
+**`AsciiImage.vue`** (hero) renders `public/sky.webp` through an ASCII shader ported from an Efecto
+export. The source is a still, so there is no animation loop: it draws once on image load and again
+on resize. Efecto's time-driven uniforms (jitter, glitch, wave, noise, targetFPS) are therefore
+dropped — they do nothing on a still. `coverRatio` reproduces `object-fit: cover` when sampling, so
+the sky is never stretched.
+
 The uniform set and post-FX names match Efecto's so its values can be pasted in, but three things
 deliberately differ from that export:
 
@@ -89,9 +94,10 @@ for narrow screens, where the horizontal gradient cannot protect the copy.
 
 ## Gotchas
 
-- `public/ocean.mp4` is a 20 s loop (960×540, 550 kB, crossfaded so it repeats seamlessly) cut from
-  a third-party YouTube video. It is **not licensed** for this use — swap it for owned or
-  CC-licensed footage before this ships anywhere public-facing.
+- `public/sky.webp` is the hero source: a sunset sky downscaled to 1600 px wide (92 kB). Under a
+  14 px ASCII grid nothing above that resolution is visible, so do not ship the 5760 px original.
+  The image reads through the Parasol ramp, not its own warm colours — swapping in another image
+  means rechecking that its bright mass sits on the right, away from the copy.
 - The quote card's pricing is **illustrative** and computed client-side (`QuoteCard.vue`). It is not
   the protocol's pricing. Keep the "Demo pricing" label until it reads real pool state. Every market
   in it must expose exactly three thresholds — the selected index is kept across market switches.

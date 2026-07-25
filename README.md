@@ -13,11 +13,9 @@ the quote card runs illustrative client-side pricing.
 ## Stack
 
 Nuxt 4, Tailwind CSS v4 (Vite plugin, tokens declared in `@theme`), self-hosted fonts via
-`@nuxt/fonts`. Two WebGL backgrounds — an ASCII video shader in the hero and a mesh gradient lower
-down — both written against the raw WebGL API, with no three.js or postprocessing dependency.
-
-The hero video (`public/ocean.mp4`) is placeholder footage and is not licensed for public use;
-replace it before deploying.
+`@nuxt/fonts`. Two WebGL backgrounds — an ASCII shader rendering a sky in the hero and a mesh
+gradient lower down — both written against the raw WebGL API, with no three.js or postprocessing
+dependency.
 
 ## Develop
 

@@ -74,16 +74,16 @@ const stack = [
 <template>
   <main id="top">
     <section class="relative flex min-h-screen items-center overflow-hidden">
-      <AsciiVideo
-        src="/ocean.mp4"
+      <AsciiImage
+        src="/sky.webp"
         :cell-size="14"
-        invert
         :color="false"
         :postfx="{
           colorPalette: 5,
-          contrastAdjust: 1.25,
-          vignetteIntensity: 0.55,
-          vignetteRadius: 2.2,
+          contrastAdjust: 1.4,
+          brightnessAdjust: 0.04,
+          vignetteIntensity: 0.5,
+          vignetteRadius: 2.4,
         }"
       />
       <div class="absolute inset-0 bg-linear-to-b from-canvas/60 via-transparent to-canvas" />

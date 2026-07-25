@@ -2,22 +2,11 @@
 type PostFx = {
   scanlineIntensity: number
   scanlineCount: number
-  targetFPS: number
-  jitterIntensity: number
-  jitterSpeed: number
   vignetteIntensity: number
   vignetteRadius: number
   colorPalette: number
   curvature: number
   aberrationStrength: number
-  noiseIntensity: number
-  noiseScale: number
-  noiseSpeed: number
-  waveAmplitude: number
-  waveFrequency: number
-  waveSpeed: number
-  glitchIntensity: number
-  glitchFrequency: number
   brightnessAdjust: number
   contrastAdjust: number
 }
@@ -37,22 +26,11 @@ const props = withDefaults(
 const DEFAULT_POSTFX: PostFx = {
   scanlineIntensity: 0,
   scanlineCount: 200,
-  targetFPS: 0,
-  jitterIntensity: 0,
-  jitterSpeed: 1,
   vignetteIntensity: 0,
   vignetteRadius: 0.8,
   colorPalette: 0,
   curvature: 0,
   aberrationStrength: 0,
-  noiseIntensity: 0,
-  noiseScale: 1,
-  noiseSpeed: 1,
-  waveAmplitude: 0,
-  waveFrequency: 10,
-  waveSpeed: 1,
-  glitchIntensity: 0,
-  glitchFrequency: 0,
   brightnessAdjust: 0,
   contrastAdjust: 1,
 }
@@ -60,7 +38,6 @@ const DEFAULT_POSTFX: PostFx = {
 const MAX_PIXEL_RATIO = 1.5
 
 const canvas = ref<HTMLCanvasElement | null>(null)
-const video = ref<HTMLVideoElement | null>(null)
 const live = ref(false)
 
 const VERTEX_SHADER = `
@@ -82,44 +59,17 @@ uniform float cellSize;
 uniform bool invert;
 uniform bool colorMode;
 uniform vec3 backgroundColor;
-
-uniform float time;
 uniform vec2 resolution;
+uniform vec2 coverRatio;
 uniform float scanlineIntensity;
 uniform float scanlineCount;
-uniform float targetFPS;
-uniform float jitterIntensity;
-uniform float jitterSpeed;
 uniform float vignetteIntensity;
 uniform float vignetteRadius;
 uniform int colorPalette;
 uniform float curvature;
 uniform float aberrationStrength;
-uniform float noiseIntensity;
-uniform float noiseScale;
-uniform float noiseSpeed;
-uniform float waveAmplitude;
-uniform float waveFrequency;
-uniform float waveSpeed;
-uniform float glitchIntensity;
-uniform float glitchFrequency;
 uniform float brightnessAdjust;
 uniform float contrastAdjust;
-
-float random(vec2 st) {
-  return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
-}
-
-float noise(vec2 st) {
-  vec2 i = floor(st);
-  vec2 f = fract(st);
-  float a = random(i);
-  float b = random(i + vec2(1.0, 0.0));
-  float c = random(i + vec2(0.0, 1.0));
-  float d = random(i + vec2(1.0, 1.0));
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-}
 
 vec3 applyColorPalette(vec3 color, int palette) {
   float lum = dot(color, vec3(0.299, 0.587, 0.114));
@@ -183,6 +133,10 @@ float getChar(float brightness, vec2 cell) {
   return max(doubleVertical, doubleHorizontal);
 }
 
+vec2 toCover(vec2 uv) {
+  return (uv - 0.5) * coverRatio + 0.5;
+}
+
 void main() {
   vec2 uv = v_uv;
   vec2 workUV = uv;
@@ -192,50 +146,26 @@ void main() {
     centered *= 1.0 + curvature * dot(centered, centered);
     workUV = centered * 0.5 + 0.5;
     if (workUV.x < 0.0 || workUV.x > 1.0 || workUV.y < 0.0 || workUV.y > 1.0) {
-      gl_FragColor = vec4(0.0);
+      gl_FragColor = vec4(backgroundColor, 1.0);
       return;
     }
   }
 
-  if (waveAmplitude > 0.0) {
-    workUV.x += sin(workUV.y * waveFrequency + time * waveSpeed) * waveAmplitude;
-    workUV.y += cos(workUV.x * waveFrequency + time * waveSpeed) * waveAmplitude;
-  }
-
   vec2 cellCount = resolution / cellSize;
-  vec2 cellCoord = floor(workUV * cellCount);
-
-  if (jitterIntensity > 0.0) {
-    float jitterTime = time * jitterSpeed;
-    float jitterX = (random(vec2(cellCoord.y, floor(jitterTime))) - 0.5) * jitterIntensity * 2.0;
-    float jitterY = (random(vec2(cellCoord.x, floor(jitterTime + 1000.0))) - 0.5) * jitterIntensity * 2.0;
-    cellCoord += vec2(jitterX, jitterY);
-  }
-
-  if (glitchIntensity > 0.0 && glitchFrequency > 0.0) {
-    float glitchTime = floor(time * glitchFrequency);
-    if (random(vec2(glitchTime, cellCoord.y)) < glitchIntensity) {
-      cellCoord.x += (random(vec2(glitchTime + 1.0, cellCoord.y)) - 0.5) * 20.0;
-    }
-  }
-
-  vec2 cellUV = (cellCoord + 0.5) / cellCount;
+  vec2 cellUV = (floor(workUV * cellCount) + 0.5) / cellCount;
+  vec2 sampleUV = toCover(cellUV);
 
   vec4 cellColor;
   if (aberrationStrength > 0.0) {
-    float r = texture2D(inputBuffer, cellUV + vec2(aberrationStrength, 0.0)).r;
-    float g = texture2D(inputBuffer, cellUV).g;
-    float b = texture2D(inputBuffer, cellUV - vec2(aberrationStrength, 0.0)).b;
+    float r = texture2D(inputBuffer, sampleUV + vec2(aberrationStrength, 0.0)).r;
+    float g = texture2D(inputBuffer, sampleUV).g;
+    float b = texture2D(inputBuffer, sampleUV - vec2(aberrationStrength, 0.0)).b;
     cellColor = vec4(r, g, b, 1.0);
   } else {
-    cellColor = texture2D(inputBuffer, cellUV);
+    cellColor = texture2D(inputBuffer, sampleUV);
   }
 
   cellColor.rgb = (cellColor.rgb - 0.5) * contrastAdjust + 0.5 + brightnessAdjust;
-
-  if (noiseIntensity > 0.0) {
-    cellColor.rgb += (noise(cellUV * noiseScale + time * noiseSpeed) - 0.5) * noiseIntensity;
-  }
 
   float brightness = dot(clamp(cellColor.rgb, 0.0, 1.0), vec3(0.299, 0.587, 0.114));
   if (invert) brightness = 1.0 - brightness;
@@ -256,7 +186,7 @@ void main() {
   if (vignetteIntensity > 0.0) {
     vec2 centered = uv * 2.0 - 1.0;
     float vignette = 1.0 - dot(centered, centered) / vignetteRadius;
-    finalColor *= mix(1.0, vignette, vignetteIntensity);
+    finalColor = mix(finalColor, backgroundColor, (1.0 - clamp(vignette, 0.0, 1.0)) * vignetteIntensity);
   }
 
   gl_FragColor = vec4(max(finalColor, 0.0), 1.0);
@@ -276,8 +206,7 @@ function compile(gl: WebGLRenderingContext, type: number, source: string) {
 
 onMounted(() => {
   const element = canvas.value
-  const source = video.value
-  if (!element || !source) return
+  if (!element) return
 
   const gl = element.getContext('webgl', { alpha: false, antialias: false, depth: false })
   if (!gl) return
@@ -300,17 +229,9 @@ onMounted(() => {
   gl.enableVertexAttribArray(position)
   gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0)
 
-  const texture = gl.createTexture()
-  gl.bindTexture(gl.TEXTURE_2D, texture)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
-
   const uniform = (name: string) => gl.getUniformLocation(program, name)
-  const timeUniform = uniform('time')
   const resolutionUniform = uniform('resolution')
+  const coverUniform = uniform('coverRatio')
 
   gl.uniform1i(uniform('inputBuffer'), 0)
   gl.uniform1f(uniform('cellSize'), props.cellSize)
@@ -325,81 +246,55 @@ onMounted(() => {
     name === 'colorPalette' ? gl.uniform1i(location, value) : gl.uniform1f(location, value)
   }
 
-  const resize = () => {
+  const image = new Image()
+  let imageAspect = 1
+
+  const draw = () => {
     const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO)
     const width = Math.round(element.clientWidth * ratio)
     const height = Math.round(element.clientHeight * ratio)
-    if (element.width === width && element.height === height) return
+    if (!width || !height) return
+
     element.width = width
     element.height = height
     gl.viewport(0, 0, width, height)
     gl.uniform2f(resolutionUniform, element.clientWidth, element.clientHeight)
-  }
 
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-  let frame = 0
-  let visible = true
-  let elapsed = 0
-  let lastFrame = 0
+    const canvasAspect = element.clientWidth / element.clientHeight
+    gl.uniform2f(
+      coverUniform,
+      Math.min(canvasAspect / imageAspect, 1),
+      Math.min(imageAspect / canvasAspect, 1),
+    )
 
-  const draw = () => {
-    resize()
-    if (source.readyState >= source.HAVE_CURRENT_DATA) {
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source)
-    }
-    gl.uniform1f(timeUniform, elapsed)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
   }
 
-  const loop = (now: number) => {
-    elapsed += Math.min((now - lastFrame) / 1000, 0.05)
-    lastFrame = now
-    draw()
-    frame = requestAnimationFrame(loop)
-  }
-
-  const play = () => {
-    if (frame) return
-    source.play().catch(() => {})
-    lastFrame = performance.now()
-    frame = requestAnimationFrame(loop)
-  }
-
-  const pause = () => {
-    cancelAnimationFrame(frame)
-    frame = 0
-    source.pause()
-  }
-
-  const observer = new IntersectionObserver(([entry]) => {
-    visible = entry?.isIntersecting ?? true
-    visible && !document.hidden ? play() : pause()
-  })
-  observer.observe(element)
-
-  const onVisibility = () => (document.hidden || !visible ? pause() : play())
-  const onLoaded = () => {
+  image.onload = () => {
+    imageAspect = image.naturalWidth / image.naturalHeight
+    const texture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image)
     draw()
     live.value = true
   }
+  image.src = props.src
 
-  document.addEventListener('visibilitychange', onVisibility)
-  window.addEventListener('resize', resize)
-  source.addEventListener('loadeddata', onLoaded)
-
-  if (source.readyState >= source.HAVE_CURRENT_DATA) onLoaded()
-  if (reducedMotion.matches) {
-    source.play().then(() => source.pause()).catch(() => {})
-  } else {
-    play()
+  let resizeFrame = 0
+  const onResize = () => {
+    cancelAnimationFrame(resizeFrame)
+    resizeFrame = requestAnimationFrame(draw)
   }
+  window.addEventListener('resize', onResize)
 
   onBeforeUnmount(() => {
-    pause()
-    observer.disconnect()
-    document.removeEventListener('visibilitychange', onVisibility)
-    window.removeEventListener('resize', resize)
-    source.removeEventListener('loadeddata', onLoaded)
+    cancelAnimationFrame(resizeFrame)
+    window.removeEventListener('resize', onResize)
     gl.getExtension('WEBGL_lose_context')?.loseContext()
   })
 })
@@ -407,15 +302,6 @@ onMounted(() => {
 
 <template>
   <div class="pointer-events-none absolute inset-0 overflow-hidden bg-canvas" aria-hidden="true">
-    <video
-      ref="video"
-      :src="src"
-      class="absolute inset-0 size-full object-cover opacity-0"
-      muted
-      loop
-      playsinline
-      preload="auto"
-    />
     <canvas
       ref="canvas"
       class="size-full transition-opacity duration-1000"
