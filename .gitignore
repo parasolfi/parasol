@@ -13,6 +13,11 @@ node_modules
 subgraphs/**/generated
 subgraphs/**/build
 
+# Matchstick's own downloaded binary/docker/version cache (regenerate via `graph test`)
+subgraphs/**/tests/.bin
+subgraphs/**/tests/.docker
+subgraphs/**/tests/.latest.json
+
 # Logs
 logs
 *.log
