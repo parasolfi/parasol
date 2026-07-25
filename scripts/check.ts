@@ -65,6 +65,8 @@ async function checkSubgraphs() {
   azMarkets.forEach((m: EnrichedMarket) => printMarket(m));
 }
 
-const topic = process.argv[2] ?? 'rain';
+// argv[2] alone only grabs the first word — "real madrid" without quotes
+// becomes two args, and process.argv[2] silently dropped "madrid" before.
+const topic = process.argv.slice(2).join(' ') || 'rain';
 await checkAdapters(topic);
 await checkSubgraphs();

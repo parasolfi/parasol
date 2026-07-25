@@ -91,7 +91,10 @@ function normalizeMarket(m: KalshiMarket): NormalizedMarket {
 export async function searchKalshiMarkets(query: string, limit = 20): Promise<NormalizedMarket[]> {
   const eventsRes = await fetch(`${KALSHI_API_BASE}/events?limit=200&status=open`);
   const eventsData = await eventsRes.json();
-  const needle = new RegExp(`\\b${query.toLowerCase()}\\b`);
+  // Escape regex special characters — query is user-typed, e.g. a stray "?"
+  // would otherwise break the pattern instead of matching literally.
+  const escaped = query.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const needle = new RegExp(`\\b${escaped}\\b`);
 
   const matchingTickers: string[] = eventsData.events
     .filter((e: { title: string }) => needle.test(e.title.toLowerCase()))
