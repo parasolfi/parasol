@@ -1,7 +1,7 @@
 import { assert, describe, test, clearStore, afterEach, newMockEvent } from 'matchstick-as/assembly/index';
 import { BigDecimal, BigInt, ethereum } from '@graphprotocol/graph-ts';
-import { handleConditionCreated } from '../src/mapping';
-import { ConditionCreated } from '../generated/LiveCore/LiveCore';
+import { handleConditionCreated, handleConditionSettled } from '../src/mapping';
+import { ConditionCreated, ConditionSettled } from '../generated/LiveCore/LiveCore';
 import { Outcome } from '../generated/schema';
 
 const CONDITION_ID = BigInt.fromI32(777);
@@ -73,5 +73,77 @@ describe('handleConditionCreated', () => {
     handleConditionCreated(createConditionCreatedEvent(outcomeIds, odds, 1));
 
     assert.entityCount('Market', 0);
+  });
+});
+
+function createConditionSettledEvent(
+  resolvedOutcomes: Array<Array<BigInt>>, // [outcomeId, status][]
+  lpProfit: BigInt,
+  settledAt: BigInt,
+): ConditionSettled {
+  const mock = newMockEvent();
+  const event = new ConditionSettled(
+    mock.address,
+    mock.logIndex,
+    mock.transactionLogIndex,
+    mock.logType,
+    mock.block,
+    mock.transaction,
+    mock.parameters,
+    mock.receipt,
+  );
+  const tuples: ethereum.Tuple[] = [];
+  for (let i = 0; i < resolvedOutcomes.length; i++) {
+    const t = new ethereum.Tuple();
+    t.push(ethereum.Value.fromUnsignedBigInt(resolvedOutcomes[i][0]));
+    t.push(ethereum.Value.fromI32(resolvedOutcomes[i][1].toI32()));
+    tuples.push(t);
+  }
+  event.parameters = [
+    new ethereum.EventParam('conditionId', ethereum.Value.fromUnsignedBigInt(CONDITION_ID)),
+    new ethereum.EventParam('state', ethereum.Value.fromI32(1)),
+    new ethereum.EventParam('resolvedOutcomes', ethereum.Value.fromTupleArray(tuples)),
+    new ethereum.EventParam('lpProfit', ethereum.Value.fromSignedBigInt(lpProfit)),
+    new ethereum.EventParam('settledAt', ethereum.Value.fromUnsignedBigInt(settledAt)),
+  ];
+  return event;
+}
+
+describe('handleConditionSettled', () => {
+  afterEach(() => {
+    clearStore();
+  });
+
+  test('maps the winning raw outcome id back to positional index', () => {
+    const outcomeIds: BigInt[] = [BigInt.fromI32(10230), BigInt.fromI32(10231)];
+    const odds: BigInt[] = [BigInt.fromString('2050000000000'), BigInt.fromString('1750000000000')];
+    handleConditionCreated(createConditionCreatedEvent(outcomeIds, odds, 1));
+
+    // Real shape from an actual settled condition: winner status=1, loser status=0.
+    handleConditionSettled(
+      createConditionSettledEvent(
+        [
+          [BigInt.fromI32(10230), BigInt.fromI32(1)],
+          [BigInt.fromI32(10231), BigInt.fromI32(0)],
+        ],
+        BigInt.fromString('19800000'),
+        BigInt.fromString('1785005222'),
+      ),
+    );
+
+    assert.fieldEquals('Resolution', MARKET_ID, 'status', 'Resolved');
+    assert.fieldEquals('Resolution', MARKET_ID, 'winningOutcomeIndex', '0');
+    assert.fieldEquals('Resolution', MARKET_ID, 'finalizedAt', '1785005222');
+  });
+
+  test('resolution for an unknown market is a no-op', () => {
+    handleConditionSettled(
+      createConditionSettledEvent(
+        [[BigInt.fromI32(1), BigInt.fromI32(1)]],
+        BigInt.zero(),
+        BigInt.fromI32(1),
+      ),
+    );
+    assert.entityCount('Resolution', 0);
   });
 });

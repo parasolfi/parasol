@@ -10,12 +10,16 @@ dataSources:
     # page turned out to actually be a LiveCore contract (live/in-play betting),
     # not the pre-match Core its docs implied — confirmed by pulling 382 real
     # logs from this address and matching their topic0 hashes against every
-    # ABI in Azuro's own public-config repo. Only ConditionCreated matched
-    # cleanly against a confirmed real on-chain event; a second event,
-    # ConditionUpdated, matched too but its field semantics couldn't be
-    # confirmed (see mapping.ts) so it's deliberately not wired up. Docs pages
-    # for fast-moving protocols lag deployed bytecode — verify against real
-    # logs, not the docs page, before trusting an address+ABI pairing.
+    # ABI in Azuro's own public-config repo. All 4 distinct topics seen on this
+    # address are now accounted for: ConditionCreated, ConditionUpdated
+    # (unwired — see mapping.ts), ConditionSettled, and NewLiveBet (not needed
+    # for our schema). The first hash-matching pass missed ConditionSettled
+    # because it wasn't expanding tuple[] component types before hashing —
+    # graph-node/Solidity compute event topics from the fully expanded
+    # signature (e.g. "(uint128,uint8)[]"), not the bare ABI "tuple[]" string.
+    # Docs pages for fast-moving protocols lag deployed bytecode — verify
+    # against real logs, not the docs page, before trusting an address+ABI
+    # pairing, and expand tuple components before hashing anything.
     network: matic
     source:
       address: "0xF9548Be470A4e130c90ceA8b179FCD66D2972AC7"
@@ -28,10 +32,14 @@ dataSources:
       entities:
         - Market
         - Outcome
+        - Resolution
+        - AzuroOutcomeLookup
       abis:
         - name: LiveCore
           file: ./abis/LiveCore.json
       eventHandlers:
         - event: ConditionCreated(indexed uint256,indexed uint256,uint128[],uint64[],uint8)
           handler: handleConditionCreated
+        - event: ConditionSettled(indexed uint256,uint8,(uint128,uint8)[],int128,uint64)
+          handler: handleConditionSettled
       file: ./src/mapping.ts

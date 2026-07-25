@@ -10,5 +10,26 @@
     ],
     "name": "ConditionCreated",
     "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "conditionId", "type": "uint256" },
+      { "indexed": false, "internalType": "uint8", "name": "state", "type": "uint8" },
+      {
+        "indexed": false,
+        "internalType": "struct ILiveCore.OutcomeResolution[]",
+        "name": "resolvedOutcomes",
+        "type": "tuple[]",
+        "components": [
+          { "internalType": "uint128", "name": "outcomeId", "type": "uint128" },
+          { "internalType": "enum ILiveCore.OutcomeStatus", "name": "status", "type": "uint8" }
+        ]
+      },
+      { "indexed": false, "internalType": "int128", "name": "lpProfit", "type": "int128" },
+      { "indexed": false, "internalType": "uint64", "name": "settledAt", "type": "uint64" }
+    ],
+    "name": "ConditionSettled",
+    "type": "event"
   }
 ]
