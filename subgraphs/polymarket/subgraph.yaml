@@ -10,10 +10,12 @@ dataSources:
     source:
       address: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
       abi: ConditionalTokens
-      # ~2 weeks back from chain head (~90,867,208 as of 2026-07-25) — bounded in
-      # time, not by market, per the "index everything, recent window" decision.
-      # Re-check the current head before deploying if this goes stale.
-      startBlock: 90267000
+      # ~21k blocks back from chain head (~90,871,656 as of 2026-07-25) — bounded
+      # in time, not by market. Originally set to ~2 weeks (startBlock 90267000)
+      # but at observed Studio sync throughput (~11 blocks/sec) that's a ~15h
+      # backfill; this smaller window matches what v0.0.2-verify proved converges
+      # in minutes. Widen only if there's real idle time before submission.
+      startBlock: 90850000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

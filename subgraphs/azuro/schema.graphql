@@ -54,13 +54,17 @@ type Resolution @entity(immutable: false) {
   finalizedAt: BigInt
 }
 
-# Internal lookup: ERC1155 CTF position id -> which Market/outcome it represents.
-# Populated at market-creation time via on-chain getCollectionId/getPositionId
-# contract calls (NOT reimplemented locally — modern CTF derives collection ids
-# as elliptic-curve points, not a plain hash, so we ask the contract instead of
-# recomputing it). Shared by every CTF-native venue (Polymarket, Omen, Seer).
-type TokenToOutcome @entity(immutable: true) {
-  id: ID! # ERC1155 positionId, decimal string
+# TokenToOutcome (from common/schema.graphql) is CTF-specific — Azuro isn't a
+# CTF venue, so it's omitted here rather than copied in unused.
+
+# Internal lookup: Azuro's own raw outcome id (from ConditionCreated's
+# `outcomes` array / ConditionResolved's `winningOutcomes` array) -> our
+# positional outcomeIndex. Azuro identifies outcomes by a global numeric id,
+# not by array position, so ConditionResolved reports winners by that raw id —
+# this lookup, populated at ConditionCreated time, is what lets
+# handleConditionResolved translate it back to outcomeIndex.
+type AzuroOutcomeLookup @entity(immutable: true) {
+  id: ID! # "<market.id>-<raw azuro outcome id>"
   market: Market!
   outcomeIndex: Int!
 }

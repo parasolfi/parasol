@@ -4,12 +4,23 @@
 # Subgraph Studio deploys need their own schema.graphql per deployment. If you
 # change this file, copy it over the per-venue ones too, or the venues drift out
 # of the "standardized schema" story the Graph track is judged on.
+#
+# The rule: every type defined here must exist, identically, in every venue's
+# copy — that's the standardized surface judges/consumers query. A venue MAY
+# append its own additional internal helper entities beyond this baseline
+# (e.g. azuro/schema.graphql has one for resolving its raw outcome ids) — those
+# are implementation plumbing, not part of the common API, so they don't need
+# to be copied everywhere.
 
 type Market @entity(immutable: true) {
   id: ID! # "<venue>-<conditionId>" — globally unique across venues
   venue: String! # "polymarket" | "omen" | "seer" | "azuro"
-  venueConditionId: Bytes! # the venue's own condition/market identifier
-  questionId: Bytes! # CTF questionId (raw, on-chain) — not human-readable
+  venueConditionId: String! # the venue's own condition/market identifier — a hex
+  # bytes32 string for CTF venues, a decimal uint256 string for Azuro. String
+  # rather than Bytes because it isn't the same underlying type across venues.
+  questionId: Bytes # CTF questionId (raw, on-chain hash) — null for non-CTF
+  # venues (Azuro has no equivalent concept; it identifies markets by
+  # gameId+conditionId, not a separate opaque question hash).
   question: String # human-readable text, if/when enriched from an off-chain
   # metadata source (e.g. Polymarket's Gamma API). NOT populated by the mapping
   # itself — on-chain events never carry question text. Leave null otherwise.
@@ -29,6 +40,9 @@ type Outcome @entity(immutable: false) {
   impliedProbability: BigDecimal! # 0..1, derived per-venue (trade price, odds, etc.)
   lastUpdatedAt: BigInt!
   lastUpdatedBlock: BigInt!
+  venueOutcomeId: String # the venue's own raw outcome identifier, if it has one
+  # distinct from array position (e.g. Azuro's global outcome ids). Null where
+  # position alone is the identifier (e.g. CTF's binary 0/1 indexSet venues).
 }
 
 type Resolution @entity(immutable: false) {

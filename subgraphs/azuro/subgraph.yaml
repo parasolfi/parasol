@@ -1,0 +1,48 @@
+specVersion: 0.0.7
+description: Parasol — standardized prediction-market index (Azuro venue)
+repository: https://github.com/parasolfi/parasol
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: ClientCore
+    # Azuro's real production subgraph (Azuro-protocol/Azuro-subgraphs) discovers
+    # Core contracts dynamically via a Factory's NewPool/NewCore events, because
+    # Core contracts get redeployed across protocol versions and Core addresses
+    # aren't stable ahead of time. We deliberately skip that: the Factory's
+    # relevant NewCore event almost certainly happened long before any window
+    # we could afford to sync (Core deployments are rare, unlike trades), so a
+    # recent-window factory scan would likely find zero and never even reach a
+    # Core contract to index. Instead we point straight at the currently-live
+    # "ClientCore" address from Azuro's own deployment-addresses page
+    # (v3.0.13, Polygon prod) as a static source, same pattern as Polymarket.
+    # Interface is assumed compatible with the CoreV3 ABI from the reference
+    # subgraph repo (same ConditionCreated/ConditionResolved/OddsChanged/
+    # getCondition shape) — not independently verified against a fetched ABI
+    # for this exact address, since Polygonscan needs a key we don't have.
+    network: matic
+    source:
+      address: "0xF9548Be470A4e130c90ceA8b179FCD66D2972AC7"
+      abi: CoreV3
+      # ~21k blocks back from chain head (~90,871,374 as of 2026-07-25).
+      startBlock: 90850000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Market
+        - Outcome
+        - Resolution
+        - AzuroOutcomeLookup
+      abis:
+        - name: CoreV3
+          file: ./abis/CoreV3.json
+      eventHandlers:
+        - event: ConditionCreated(indexed uint256,indexed uint256,uint64[])
+          handler: handleConditionCreated
+        - event: ConditionResolved(indexed uint256,uint8,uint64[],int128)
+          handler: handleConditionResolved
+        - event: OddsChanged(indexed uint256,uint256[])
+          handler: handleOddsChanged
+      file: ./src/mapping.ts

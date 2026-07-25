@@ -32,7 +32,7 @@ export function handleConditionPreparation(event: ConditionPreparation): void {
 
   const market = new Market(id);
   market.venue = VENUE;
-  market.venueConditionId = conditionId;
+  market.venueConditionId = conditionId.toHexString();
   market.questionId = event.params.questionId;
   market.question = null; // not on-chain — see schema.graphql note
   market.outcomeSlotCount = outcomeSlotCount;
