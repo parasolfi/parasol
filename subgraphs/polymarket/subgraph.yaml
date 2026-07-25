@@ -10,14 +10,14 @@ dataSources:
     source:
       address: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
       abi: ConditionalTokens
-      # ~4 days back from chain head (~90,877,864 as of 2026-07-26) — bounded in
-      # time. Widened from ~21k blocks (~15h) specifically to have a real chance
-      # of catching NegRiskAdapter's QuestionPrepared events (see NegRiskAdapter
-      # source below) — those are rare (10 in a ~5000 block sample vs. thousands
-      # of trades), so most currently-tradeable NegRisk questions were prepared
-      # well before any short window. At observed ~14 blocks/sec this is a
-      # ~2.5h backfill, not the ~15h-per-2-weeks math from the original window.
-      startBlock: 90705000
+      # ~36h back from chain head (~90,878,456 as of 2026-07-26). Pulled back in
+      # from a ~4-day window (90705000) — with 4 data sources now (this one,
+      # Exchange, NegRiskCtfExchange, NegRiskAdapter) the wider window wasn't
+      # converging fast enough. This does mean most NegRisk questions currently
+      # trading were "prepared" (QuestionPrepared, see NegRiskAdapter source
+      # below) before this window and won't get a TokenToOutcome entry — a
+      # real, accepted trade-off for convergence time, not an oversight.
+      startBlock: 90813000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -48,7 +48,7 @@ dataSources:
     source:
       address: "0xE111180000d2663C0091e4f400237545B87B996B"
       abi: Exchange
-      startBlock: 90705000
+      startBlock: 90813000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -73,7 +73,7 @@ dataSources:
     source:
       address: "0xe2222d279d744050d28e00520010520000310F59"
       abi: Exchange
-      startBlock: 90705000
+      startBlock: 90813000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -100,7 +100,7 @@ dataSources:
     source:
       address: "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"
       abi: NegRiskAdapter
-      startBlock: 90705000
+      startBlock: 90813000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

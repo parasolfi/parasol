@@ -27,11 +27,11 @@ dataSources:
     source:
       address: "0xF9548Be470A4e130c90ceA8b179FCD66D2972AC7"
       abi: LiveCore
-      # ~4 days back from chain head — widened alongside Polymarket's window
-      # for the same reason: more real history to browse/search, and matches
-      # what's actually achievable at observed Studio throughput (~14 blocks/
-      # sec here converges in a couple hours, not the ~15h/~2 weeks math).
-      startBlock: 90705000
+      # ~8 days back from chain head (~90,878,456 as of 2026-07-26). Widened
+      # further than Polymarket's window specifically because this one keeps
+      # converging fast (single data source, no NegRisk-style backfill need) —
+      # more real history to browse/search at no real cost in convergence time.
+      startBlock: 90533000
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
