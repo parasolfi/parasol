@@ -1,9 +1,12 @@
-# Parasol — front
+# Parasol — front + broker
 
-Landing page for Parasol, parametric cover built on the mechanism described in `../PROJECT.md`
-(insurers are Uniswap v4 LPs, buying cover is a swap). This app is marketing only — no wallet, no
-contract calls yet. The POC front for the contracts lives in `../poc/app` and is a separate
-React/Vite app; do not merge the two.
+Parasol v2: an AI broker over Polymarket liquidity — see `SPEC.md` (authoritative) and
+`PROJECT.md`. The landing page is the marketing surface; `/cover` is the product: agent interview
+(0G Compute Router), live quotes on Polymarket daily-temperature buckets, fork-mode execution,
+policies attested on 0G Galileo (`contracts/PolicyRegistry.sol`). Server routes live in `server/`,
+venue adapters in `adapters/` (shared with the subgraph branch `feat/graph-indexer`).
+`RUNBOOK.md` is the demo pre-flight. The old Uniswap POC lives in `../poc` — dead model, kept for
+CTF reference.
 
 All user-facing copy is in **English**.
 
