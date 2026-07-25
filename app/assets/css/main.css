@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #05070c;
+  --color-ink-soft: #0a1018;
+  --color-deep: #0d2447;
+  --color-ocean: #1d4f7a;
+  --color-teal: #3aa9b6;
+  --color-mint: #7bd9b8;
+  --color-pale: #c6f4cf;
+
+  --font-display: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --text-hero: clamp(2.75rem, 8vw, 6.5rem);
+  --text-section: clamp(2rem, 4.5vw, 3.5rem);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: color-mix(in oklab, var(--color-pale) 92%, white);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--color-mint);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-mint);
+    outline-offset: 3px;
+  }
+}
+
+@utility surface {
+  background: linear-gradient(
+    150deg,
+    color-mix(in oklab, var(--color-ocean) 16%, transparent),
+    color-mix(in oklab, var(--color-ink) 70%, transparent)
+  );
+  border: 1px solid color-mix(in oklab, var(--color-teal) 22%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+@utility text-glow {
+  text-shadow: 0 0 60px color-mix(in oklab, var(--color-teal) 45%, transparent);
+}
+
+@utility rule-fade {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-teal) 35%, transparent),
+    transparent
+  );
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility rise {
+  animation: rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
