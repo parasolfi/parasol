@@ -408,7 +408,7 @@
 <div class="masthead">
   <div class="eyebrow">Parasol — internal check</div>
   <h1>Search three venues. Read two indexers.</h1>
-  <p>Live queries against Polymarket, Azuro and Kalshi's own APIs, plus our two Subgraph Studio deployments — nothing here is mocked or cached.</p>
+  <p>Live queries against Polymarket and Azuro's own APIs, straight from this page — nothing here is mocked or cached. Kalshi and the indexer panels below are real too, but their APIs don't allow browser calls from outside their own site (see notes) — those two run from the terminal script instead.</p>
 </div>
 
 <form class="search" id="search-form">
@@ -617,7 +617,12 @@
 
     searchKalshi(query)
       .then((m) => renderColumn('col-kalshi', m))
-      .catch((e) => renderColumnError('col-kalshi', 'Fetch failed: ' + e.message));
+      .catch(() =>
+        renderColumnError(
+          'col-kalshi',
+          "Kalshi's API blocks requests from browsers (no CORS headers, confirmed via curl) — real data, terminal-only. Run scripts/check.ts to see it."
+        )
+      );
   }
 
   document.getElementById('search-form').addEventListener('submit', (e) => {
@@ -690,7 +695,8 @@
         )
       );
     } catch (e) {
-      document.getElementById('idx-polymarket').innerHTML = '<div class="error">Fetch failed: ' + e.message + '</div>';
+      document.getElementById('idx-polymarket').innerHTML =
+        '<div class="error">Studio\'s query endpoint doesn\'t answer the browser\'s CORS preflight for POST (confirmed via curl) — real, synced data, just not fetchable from an arbitrary page. See it directly at <a href="https://thegraph.com/studio/subgraph/parasol-polymarket/" target="_blank" rel="noopener">the Studio playground</a>, or via scripts/check.ts.</div>';
     }
 
     try {
@@ -707,7 +713,8 @@
         )
       );
     } catch (e) {
-      document.getElementById('idx-azuro').innerHTML = '<div class="error">Fetch failed: ' + e.message + '</div>';
+      document.getElementById('idx-azuro').innerHTML =
+        '<div class="error">Same CORS preflight gap as the Polymarket panel above — real, synced data. See it at <a href="https://thegraph.com/studio/subgraph/parasol-azuro/" target="_blank" rel="noopener">the Studio playground</a>, or via scripts/check.ts.</div>';
     }
   }
 
