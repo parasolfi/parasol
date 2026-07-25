@@ -107,6 +107,10 @@ const CONDITION_FIELDS = `
 `;
 
 export async function searchAzuroMarkets(query: string, limit = 20): Promise<NormalizedMarket[]> {
+  // `first: limit` here bounds the number of GAMES, not conditions — each
+  // game can carry many betting markets (moneyline, spread, totals, ...), so
+  // this over-fetches and slices at the end rather than truncating games,
+  // which would silently hide most of a match's markets to hit an early game.
   const data = await queryAzuro(`{
     games(first: ${limit}, where: { title_contains_nocase: "${query}" }) {
       conditions { ${CONDITION_FIELDS} }
@@ -118,7 +122,7 @@ export async function searchAzuroMarkets(query: string, limit = 20): Promise<Nor
       markets.push(normalizeCondition(condition));
     }
   }
-  return markets;
+  return markets.slice(0, limit);
 }
 
 export async function getAzuroMarket(conditionId: string): Promise<NormalizedMarket | null> {

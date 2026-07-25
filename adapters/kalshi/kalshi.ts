@@ -84,13 +84,17 @@ function normalizeMarket(m: KalshiMarket): NormalizedMarket {
 // doesn't expose full-text search on this endpoint, so this fetches a page of
 // open events and filters locally. Fine for a demo; paginate further (via the
 // `cursor` field Kalshi returns) if you need broader coverage.
+//
+// Word-boundary match, not substring — plain `.includes()` matches "rain"
+// inside "Ukraine" and returns unrelated election markets for a weather
+// search. Found by actually running it, not hypothetically.
 export async function searchKalshiMarkets(query: string, limit = 20): Promise<NormalizedMarket[]> {
   const eventsRes = await fetch(`${KALSHI_API_BASE}/events?limit=200&status=open`);
   const eventsData = await eventsRes.json();
-  const needle = query.toLowerCase();
+  const needle = new RegExp(`\\b${query.toLowerCase()}\\b`);
 
   const matchingTickers: string[] = eventsData.events
-    .filter((e: { title: string }) => e.title.toLowerCase().includes(needle))
+    .filter((e: { title: string }) => needle.test(e.title.toLowerCase()))
     .map((e: { event_ticker: string }) => e.event_ticker)
     .slice(0, limit);
 
