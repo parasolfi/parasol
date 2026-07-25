@@ -9,6 +9,7 @@ export interface PolicyRecord {
   eventSlug: string
   question: string
   tokenIds: string[]
+  conditionIds: string[]
   shares: number
   premiumUsdc: number
   profile: string

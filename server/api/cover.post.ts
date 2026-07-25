@@ -65,6 +65,7 @@ export default defineEventHandler(async (event) => {
     eventSlug: option.id,
     question: option.question,
     tokenIds: basket.legs.map((l) => l.tokenId),
+    conditionIds: basket.legs.map((l) => l.conditionId),
     shares: payoutUsdc,
     premiumUsdc: basket.premiumUsdc,
     profile: typeof profile === 'string' ? profile : '',
