@@ -30,6 +30,7 @@ interface Policy {
   status: string
   issuedAt: string
   chain: { network: string; registry: string; txHash: string } | null
+  storage: { rootHash: string; txHash: string } | null
 }
 
 interface Alternative {
@@ -92,6 +93,28 @@ async function send() {
   }
 }
 
+const POLYGON = {
+  chainId: '0x89',
+  chainName: 'Polygon',
+  nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
+  rpcUrls: ['https://polygon-rpc.com'],
+  blockExplorerUrls: ['https://polygonscan.com'],
+}
+
+// The Cover authorization is signed against chainId 137, so the wallet has to
+// be on Polygon or the signature verifies against the wrong domain.
+async function ensurePolygon() {
+  const eth = (window as any).ethereum
+  if (!eth) return
+  if ((await eth.request({ method: 'eth_chainId' })) === POLYGON.chainId) return
+  try {
+    await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: POLYGON.chainId }] })
+  } catch (err: any) {
+    if (err?.code !== 4902) throw err
+    await eth.request({ method: 'wallet_addEthereumChain', params: [POLYGON] })
+  }
+}
+
 async function connectWallet() {
   const eth = (window as any).ethereum
   if (!eth) {
@@ -100,6 +123,7 @@ async function connectWallet() {
   }
   const accounts = await eth.request({ method: 'eth_requestAccounts' })
   if (accounts?.[0]) holder.value = accounts[0]
+  await ensurePolygon()
 }
 
 async function switchOption(alt: Alternative) {
@@ -138,6 +162,7 @@ async function signCover(): Promise<string> {
   if (!quote.value || !exposure.value) throw new Error('no quote')
   const eth = (window as any).ethereum
   if (!eth) throw new Error('no wallet: connect one to authorize the cover')
+  await ensurePolygon()
   const message = {
     market: quote.value.option.question,
     threshold: `${exposure.value.threshold}°${quote.value.option.unit}`,
@@ -307,15 +332,27 @@ async function buy() {
                   </span>
                 </div>
                 <p class="mt-2 text-xs text-ink/45">Pays ${{ p.shares }} · premium ${{ p.premiumUsdc }}</p>
-                <a
-                  v-if="p.chain"
-                  :href="`https://chainscan-galileo.0g.ai/tx/${p.chain.txHash}`"
-                  target="_blank"
-                  rel="noopener"
-                  class="mt-1 inline-block text-xs text-teal hover:underline"
-                >
-                  Attestation on 0G ↗
-                </a>
+                <div class="mt-1 flex flex-wrap gap-3">
+                  <a
+                    v-if="p.chain"
+                    :href="`https://chainscan-galileo.0g.ai/tx/${p.chain.txHash}`"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-xs text-teal hover:underline"
+                  >
+                    Attestation on 0G ↗
+                  </a>
+                  <a
+                    v-if="p.storage"
+                    :href="`https://chainscan-galileo.0g.ai/tx/${p.storage.txHash}`"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-xs text-teal hover:underline"
+                    title="Risk profile, AES-256-GCM encrypted before upload"
+                  >
+                    Encrypted profile on 0G Storage ↗
+                  </a>
+                </div>
               </li>
             </ul>
           </div>

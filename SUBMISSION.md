@@ -26,18 +26,21 @@ et la mettre à jour ici + dans le formulaire)
 _À enregistrer — script dans `VIDEO.md`, < 3 min._
 
 ## 0G features used
-- **0G Compute** — the broker's inference. Two integration paths wired:
-  1. Compute Router (OpenAI-compatible, `ZG_ROUTER_API_KEY`)
-  2. Direct compute SDK (`@0gfoundation/0g-compute-ts-sdk`): wallet-signed requests to a live
-     testnet provider (`qwen/qwen2.5-omni-7b` at `0xa48f…7836`), settled on-chain. Ledger flow
-     validated end-to-end on a Galileo fork (see `scripts/test-zg-fork-rehearsal.mjs`); the
-     provider's account check against the real chain is the exact boundary that makes the
-     inference proof unfakeable.
-- **0G Chain (Galileo)** — `PolicyRegistry`: the agent's wallet writes issuance, resolution and
-  payout attestations for every policy. Non-custodial split: the client's keys move money (on
-  Polygon), the agent's key moves only attestations (on 0G).
-- Roadmap (not shipped): 0G Storage for encrypted risk profiles, Agentic ID (ERC-7857) for the
-  broker's identity.
+- **0G Compute** — the broker's inference, running live. Two paths wired: the Compute Router
+  (`ZG_ROUTER_API_KEY`) and the direct SDK broker (`@0gfoundation/0g-compute-ts-sdk`) —
+  wallet-signed requests to provider `0xa48f…7836` (`qwen/qwen2.5-omni-7b`), ledger funded on
+  Galileo, settled on-chain per call. The provider verifies the account against the real chain,
+  which is what makes the inference proof unfakeable (see
+  `scripts/test-zg-fork-rehearsal.mjs`: the same flow on a fork is refused).
+- **0G Storage** — the client's risk profile (their revenue exposure, thresholds, losses) is
+  AES-256-GCM encrypted in-process and uploaded via `@0gfoundation/0g-storage-ts-sdk`; only the
+  root hash leaves. Example: root `0xa7730771f24e026261c1d9c4e5598d3a15aac31302ec48508794a3b4bb0fe4d1`,
+  upload tx `0xf33147b4754c74db1d6fb56713434798db4914dcef57fc1003eb602b182dd158`.
+- **0G Chain (Galileo)** — `PolicyRegistry`: the agent's wallet attests issuance, resolution and
+  payout, committing to the 0G Storage root hash. Non-custodial split: the client's key
+  authorizes and holds (Polygon), the agent's key only attests (0G).
+- Roadmap (not shipped): Agentic ID (ERC-7857) for the broker's identity — the reference
+  implementation is still a draft branch and pre-audit per 0G's own docs.
 
 ## Team
 - _Noms + Telegram + X à remplir_

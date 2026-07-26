@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createWalletClient, createPublicClient, http, keccak256, toHex, type Address } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { GALILEO_RPC, registryAbi } from './chain'
+import { storeEncryptedProfile } from './zg-storage'
 
 export interface PolicyRecord {
   id: number
@@ -17,6 +18,7 @@ export interface PolicyRecord {
   issuedAt: string
   status: 'Issued' | 'ResolvedYes' | 'ResolvedNo' | 'Paid'
   chain: { network: string; registry: string; txHash: string } | null
+  storage: { rootHash: string; txHash: string } | null
 }
 
 const STORE_DIR = '.data'
@@ -53,7 +55,7 @@ async function attestOnChain(p: PolicyRecord): Promise<PolicyRecord['chain']> {
       functionName: 'issue',
       args: [
         p.holder as Address,
-        keccak256(toHex(`${p.profile}|${p.authorization}`)),
+        p.storage ? (p.storage.rootHash as `0x${string}`) : keccak256(toHex(`${p.profile}|${p.authorization}`)),
         p.eventSlug,
         p.tokenIds.map(BigInt),
         BigInt(Math.round(p.shares * 1e6)),
@@ -67,7 +69,9 @@ async function attestOnChain(p: PolicyRecord): Promise<PolicyRecord['chain']> {
   }
 }
 
-export async function issuePolicy(input: Omit<PolicyRecord, 'id' | 'issuedAt' | 'status' | 'chain'>): Promise<PolicyRecord> {
+export async function issuePolicy(
+  input: Omit<PolicyRecord, 'id' | 'issuedAt' | 'status' | 'chain' | 'storage'>,
+): Promise<PolicyRecord> {
   const records = load()
   const record: PolicyRecord = {
     ...input,
@@ -75,7 +79,17 @@ export async function issuePolicy(input: Omit<PolicyRecord, 'id' | 'issuedAt' | 
     issuedAt: new Date().toISOString(),
     status: 'Issued',
     chain: null,
+    storage: null,
   }
+  record.storage = await storeEncryptedProfile({
+    holder: record.holder,
+    eventSlug: record.eventSlug,
+    question: record.question,
+    profile: record.profile,
+    shares: record.shares,
+    premiumUsdc: record.premiumUsdc,
+    authorization: record.authorization,
+  })
   record.chain = await attestOnChain(record)
   records.push(record)
   save(records)
