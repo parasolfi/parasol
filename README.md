@@ -39,7 +39,7 @@ Resolve        real Polymarket resolutions flip policy status; winners are paid
 
 | Contract | Network | Address |
 |---|---|---|
-| PolicyRegistry | 0G Galileo (16602) | _deploy pending_ |
+| PolicyRegistry | 0G Galileo (16602) | [`0x504C64EBb9816AA9238404244fC8849d849B5A6e`](https://chainscan-galileo.0g.ai/address/0x504C64EBb9816AA9238404244fC8849d849B5A6e) |
 
 ## Run
 
