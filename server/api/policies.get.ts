@@ -10,11 +10,12 @@ export default defineEventHandler(async () => {
   const policies = await Promise.all(
     listPolicies().map(async (p) => {
       const option = await findCoverOption(p.eventSlug)
-      const published = await readPolicyRecord(ENS_PARENT, `parasol.policy.${p.id}.status`)
+      const ensName = option ? policyName(option.city, option.peril, option.date, p.id) : null
+      const published = ensName ? await readPolicyRecord(ensName, 'parasol.status') : null
       return {
         ...p,
         holderName: await reverseName(p.holder as Address),
-        ensName: option ? policyName(option.city, option.peril, option.date, p.id) : null,
+        ensName,
         ensPublished: published !== null,
         ensParent: ENS_PARENT,
       }

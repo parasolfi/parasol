@@ -376,12 +376,12 @@ async function buy() {
                   <span v-if="p.holderName"> · {{ p.holderName }}</span>
                 </p>
                 <a
-                  v-if="p.ensPublished"
-                  :href="`https://sepolia.app.ens.domains/${p.ensParent}`"
+                  v-if="p.ensPublished && p.ensName"
+                  :href="`https://sepolia.app.ens.domains/${p.ensName}`"
                   target="_blank"
                   rel="noopener"
                   class="text-xs text-teal hover:underline"
-                  >On ENS: {{ p.ensParent }} · policy {{ p.id }} ↗</a
+                  >{{ p.ensName }} ↗</a
                 >
                 <p v-else-if="p.ensName" class="text-xs text-ink/35" :title="`Reserved name — publish records to make it resolve`">
                   {{ p.ensName }} (reserved)
