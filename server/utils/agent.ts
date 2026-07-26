@@ -92,7 +92,10 @@ function mockTurn(history: ChatMessage[], options: CoverOption[]): AgentTurn {
   const costMatch = userText.match(/[$€]\s*(\d{2,5})|(\d{2,5})\s*(?:\$|€|dollars?|euros?|usd)/i)
 
   if (!pick) {
-    const cities = [...new Set(heatOptions.map((o) => o.city))].slice(0, 6).join(', ')
+    const cities = [...new Set(heatOptions.map((o) => o.city))]
+      .sort((a, b) => (a === 'Madrid' ? -1 : b === 'Madrid' ? 1 : 0))
+      .slice(0, 8)
+      .join(', ')
     return {
       reply: `Got it. Which city are you in? I can currently cover daily temperature in: ${cities}.`,
       exposure: null,
