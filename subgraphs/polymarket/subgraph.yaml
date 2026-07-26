@@ -1,0 +1,39 @@
+specVersion: 1.0.0
+description: >-
+  Polymarket conditions on Polygon, indexed straight off the Conditional Tokens
+  Framework. Both handlers listen to the CTF itself rather than to a specific
+  oracle adapter, which is what makes bucketed (negRisk) markets show up: their
+  conditions are prepared with NegRiskAdapter 0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296
+  as oracle, so anything filtering on the UMA adapter misses every one of them —
+  including the daily temperature markets this project quotes against.
+repository: https://github.com/parasolfi/parasol
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: ConditionalTokens
+    network: matic
+    source:
+      address: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
+      abi: ConditionalTokens
+      # Daily temperature markets open roughly two days before their window, so
+      # the demo needs J-2 onward. Lower this to backfill further; the CTF is
+      # busy and every extra day is real sync time.
+      startBlock: 90700000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/mapping.ts
+      entities:
+        - Market
+        - Outcome
+        - Resolution
+      abis:
+        - name: ConditionalTokens
+          file: ./abis/ConditionalTokens.json
+      eventHandlers:
+        - event: ConditionPreparation(indexed bytes32,indexed address,indexed bytes32,uint256)
+          handler: handleConditionPreparation
+        - event: ConditionResolution(indexed bytes32,indexed address,indexed bytes32,uint256,uint256[])
+          handler: handleConditionResolution

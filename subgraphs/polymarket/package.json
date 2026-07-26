@@ -1,0 +1,13 @@
+{
+  "name": "parasol-polymarket-subgraph",
+  "private": true,
+  "scripts": {
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "deploy": "graph deploy parasol-polymarket"
+  },
+  "dependencies": {
+    "@graphprotocol/graph-cli": "0.98.0",
+    "@graphprotocol/graph-ts": "0.38.1"
+  }
+}
