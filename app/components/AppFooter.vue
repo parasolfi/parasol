@@ -3,30 +3,21 @@ const columns = [
   {
     title: 'Product',
     links: [
-      { label: 'Get a quote', href: '#quote' },
-      { label: 'What you can cover', href: '#cover' },
-      { label: 'Underwrite', href: '#underwrite' },
-    ],
-  },
-  {
-    title: 'Protocol',
-    links: [
-      { label: 'FAQ', href: '#faq' },
-      { label: 'Contracts', href: '#' },
-      { label: 'Subgraph', href: '#' },
+      { label: 'Get covered', href: '/cover' },
+      { label: 'My cover', href: '/policies' },
     ],
   },
 ]
 </script>
 
 <template>
-  <footer class="border-t border-ink/6 bg-canvas-soft">
-    <div class="mx-auto max-w-6xl px-6 py-16">
+  <footer class="glass relative border-t border-white/40">
+    <div class="relative mx-auto max-w-6xl px-6 py-16">
       <div class="grid gap-12 md:grid-cols-[2fr_1fr_1fr]">
         <div>
           <div class="flex items-center gap-2.5">
             <AppLogo :size="26" />
-            <span class="font-display text-xl text-ink">Parasol</span>
+            <span class="font-display text-xl text-ink">free</span>
           </div>
           <p class="mt-4 max-w-xs text-sm leading-relaxed text-ink/40">
             Parametric cover for anything a public source can measure.
@@ -48,7 +39,7 @@ const columns = [
       >
         <p>Built at ETHGlobal Lisbon 2026.</p>
         <p class="max-w-md sm:text-right">
-          Experimental software. Parasol is not a regulated insurance product and nothing here is
+          Experimental software. free is not a regulated insurance product and nothing here is
           financial advice.
         </p>
       </div>

@@ -241,12 +241,9 @@ async function buy() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-canvas">
-    <AppHeader />
-
+  <div class="min-h-screen">
     <main class="mx-auto max-w-6xl px-6 pb-24 pt-28">
-      <p class="text-xs uppercase tracking-[0.18em] text-teal">Parasol broker</p>
-      <h1 class="mt-2 font-display text-4xl text-ink sm:text-5xl">Tell us what a bad day looks like.</h1>
+      <h1 class="font-display text-4xl text-ink sm:text-5xl">Tell us what a bad day looks like.</h1>
       <p class="mt-3 max-w-xl text-ink/55">
         The broker interviews you, finds the market that already prices your risk, and structures the cover.
         Your wallet holds the position — we never touch your money.
@@ -421,7 +418,5 @@ async function buy() {
         </section>
       </div>
     </main>
-
-    <AppFooter />
   </div>
 </template>
