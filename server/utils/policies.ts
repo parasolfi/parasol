@@ -3,6 +3,7 @@ import { createWalletClient, createPublicClient, http, keccak256, toHex, type Ad
 import { privateKeyToAccount } from 'viem/accounts'
 import { GALILEO_RPC, registryAbi } from './chain'
 import { storeEncryptedProfile } from './zg-storage'
+import { policyLabel, policyRecords, publishPolicyName } from './ens'
 
 export interface PolicyRecord {
   id: number
@@ -19,6 +20,7 @@ export interface PolicyRecord {
   status: 'Issued' | 'ResolvedYes' | 'ResolvedNo' | 'Paid'
   chain: { network: string; registry: string; txHash: string } | null
   storage: { rootHash: string; txHash: string } | null
+  ens: { name: string; network: string; resolver: string; txHashes: string[] } | null
 }
 
 const STORE_DIR = '.data'
@@ -70,7 +72,8 @@ async function attestOnChain(p: PolicyRecord): Promise<PolicyRecord['chain']> {
 }
 
 export async function issuePolicy(
-  input: Omit<PolicyRecord, 'id' | 'issuedAt' | 'status' | 'chain' | 'storage'>,
+  input: Omit<PolicyRecord, 'id' | 'issuedAt' | 'status' | 'chain' | 'storage' | 'ens'>,
+  naming?: { city: string; peril: string; date: string },
 ): Promise<PolicyRecord> {
   const records = load()
   const record: PolicyRecord = {
@@ -80,6 +83,7 @@ export async function issuePolicy(
     status: 'Issued',
     chain: null,
     storage: null,
+    ens: null,
   }
   record.storage = await storeEncryptedProfile({
     holder: record.holder,
@@ -91,6 +95,11 @@ export async function issuePolicy(
     authorization: record.authorization,
   })
   record.chain = await attestOnChain(record)
+  if (naming)
+    record.ens = await publishPolicyName(
+      policyLabel(naming.city, naming.peril, naming.date, record.id),
+      policyRecords(record),
+    )
   records.push(record)
   save(records)
   return record
