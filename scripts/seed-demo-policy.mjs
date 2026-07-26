@@ -50,6 +50,7 @@ records.push({
   conditionIds: [winner.conditionId],
   shares: payout,
   premiumUsdc: Math.round(payout * ask * 100) / 100,
+  feesUsdc: 0,
   profile: `outdoor event organizer, ${city}, heat`,
   issuedAt,
   status: 'Issued',
