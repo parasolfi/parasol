@@ -1,9 +1,33 @@
 import type { ApiKeyCreds, OrderResponse, TickSize } from '@polymarket/clob-client-v2'
+import type { Address } from 'viem'
 import { ClobClient, OrderType, SignatureTypeV2, Side } from '@polymarket/clob-client-v2'
-import { createWalletClient, custom } from 'viem'
+import { createPublicClient, createWalletClient, custom, http, parseAbi } from 'viem'
 import { polygon } from 'viem/chains'
 
 const CLOB_HOST = 'https://clob.polymarket.com'
+
+// NegRiskCtfExchangeV2.getCollateral() returns pUSD, read on-chain — the
+// exchange settles in pUSD only, so USDC.e has to be wrapped before it can back
+// an order. Verified against docs.polymarket.com/resources/contracts.
+const USDCE: Address = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
+const PUSD: Address = '0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB'
+const COLLATERAL_ONRAMP: Address = '0x93070a847efEf7F70739046A929D47a521F5B8ee'
+const NEG_RISK_EXCHANGE_V2: Address = '0xe2222d279d744050d28e00520010520000310F59'
+
+const erc20Abi = parseAbi([
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+  'function balanceOf(address owner) view returns (uint256)',
+])
+
+// wrap takes the asset and a recipient — SPEC.md §4.1 writes wrap(amount),
+// which does not exist. Selector 0x62355638, confirmed in the deployed bytecode.
+const onrampAbi = parseAbi(['function wrap(address asset, address to, uint256 amount)'])
+
+export interface OnboardingStep {
+  step: 'approve-usdce' | 'wrap' | 'approve-exchange'
+  txHash: string
+}
 
 // clob.polymarket.com answers access-control-allow-origin: * on POST /order,
 // so the browser posts signed orders itself. Parasol never relays them.
@@ -71,6 +95,63 @@ export function useClob() {
     })
 
     return account
+  }
+
+  /**
+   * Brings the wallet to a state where it can back an order, and does no more
+   * than that: each step is skipped when already satisfied. A wallet funded
+   * directly in pUSD never wraps; one whose allowance already covers the
+   * premium never re-approves. Every transaction is the holder's own.
+   */
+  async function ensureCollateral(amountUsdc: number): Promise<OnboardingStep[]> {
+    if (!client) await connect()
+    const account = address.value
+    if (!account) throw new Error('connect a wallet first')
+
+    const amount = BigInt(Math.ceil(amountUsdc * 1e6))
+    const reader = createPublicClient({ chain: polygon, transport: http() })
+    const wallet = createWalletClient({ account, chain: polygon, transport: custom(provider()) })
+    const done: OnboardingStep[] = []
+
+    const pusd = await reader.readContract({ address: PUSD, abi: erc20Abi, functionName: 'balanceOf', args: [account] })
+
+    if (pusd < amount) {
+      const missing = amount - pusd
+      const usdce = await reader.readContract({ address: USDCE, abi: erc20Abi, functionName: 'balanceOf', args: [account] })
+      if (usdce < missing) {
+        throw new Error(`needs ${Number(missing) / 1e6} more USDC.e to wrap (holding ${Number(usdce) / 1e6})`)
+      }
+
+      const onrampAllowance = await reader.readContract({
+        address: USDCE, abi: erc20Abi, functionName: 'allowance', args: [account, COLLATERAL_ONRAMP],
+      })
+      if (onrampAllowance < missing) {
+        const hash = await wallet.writeContract({
+          address: USDCE, abi: erc20Abi, functionName: 'approve', args: [COLLATERAL_ONRAMP, missing],
+        })
+        await reader.waitForTransactionReceipt({ hash })
+        done.push({ step: 'approve-usdce', txHash: hash })
+      }
+
+      const hash = await wallet.writeContract({
+        address: COLLATERAL_ONRAMP, abi: onrampAbi, functionName: 'wrap', args: [USDCE, account, missing],
+      })
+      await reader.waitForTransactionReceipt({ hash })
+      done.push({ step: 'wrap', txHash: hash })
+    }
+
+    const exchangeAllowance = await reader.readContract({
+      address: PUSD, abi: erc20Abi, functionName: 'allowance', args: [account, NEG_RISK_EXCHANGE_V2],
+    })
+    if (exchangeAllowance < amount) {
+      const hash = await wallet.writeContract({
+        address: PUSD, abi: erc20Abi, functionName: 'approve', args: [NEG_RISK_EXCHANGE_V2, amount],
+      })
+      await reader.waitForTransactionReceipt({ hash })
+      done.push({ step: 'approve-exchange', txHash: hash })
+    }
+
+    return done
   }
 
   /** L1 auth: a free off-chain EIP-712 signature that derives the L2 HMAC creds. */
@@ -152,6 +233,7 @@ export function useClob() {
     address: readonly(address),
     authenticated: readonly(authenticated),
     connect,
+    ensureCollateral,
     authenticate,
     executeBasket,
     orderStatus,

@@ -16,6 +16,29 @@ set -a; source .env; set +a
 FORK_RPC_URL=http://127.0.0.1:8546 NUXT_IGNORE_LOCK=1 ./node_modules/.bin/nuxt dev --port 3100 &
 ```
 
+### Mode réel (vraies positions sur Polymarket)
+
+`EXECUTION_MODE=venue` bascule l'exécution du fork vers le vrai carnet. Le
+navigateur signe et poste les ordres lui-même, puis le serveur vérifie la
+livraison en lisant le solde ERC-1155 du client sur Polygon mainnet — il ne
+croit pas le client sur parole, et n'a besoin d'aucune credential.
+
+```bash
+EXECUTION_MODE=venue NUXT_IGNORE_LOCK=1 ./node_modules/.bin/nuxt dev --port 3100 &
+```
+
+Prérequis, sinon `/api/cover` répond 409 « not settled » :
+
+1. Le wallet client détient du **POL** (gas) et du **pUSD**. L'exchange règle en
+   pUSD uniquement — `NegRiskCtfExchangeV2.getCollateral()` le confirme. De
+   l'USDC.e est wrappé automatiquement par `ensureCollateral()` ; du pUSD déjà
+   en place saute cette étape.
+2. Le venue n'est pas géobloqué. `GET /api/market-rules` renvoie `geoBlocked`.
+
+`min_order_size` vaut 5 parts par leg, donc un premier achat de validation
+coûte de l'ordre du dollar. Faire ce test avant de compter dessus en démo :
+rien de ce chemin n'a encore été exécuté avec un wallet financé.
+
 Vérifier : `curl localhost:3100/api/catalog` retourne des options du jour.
 
 ## 3. Police d'hier (le moment payout de la démo)

@@ -18,6 +18,18 @@ export const registryAbi = parseAbi([
 
 export const forkClient = createPublicClient({ transport: http(FORK_RPC) })
 
+// polygon-rpc.com answers "tenant disabled" (403) as of 2026-07-26.
+export const POLYGON_RPC = process.env.POLYGON_RPC_URL ?? 'https://polygon-bor-rpc.publicnode.com'
+
+// Real mainnet, not the fork: venue mode proves delivery by reading the
+// holder's ERC-1155 balance on Polygon, which needs no API credentials and so
+// keeps the client's CLOB session on the client (SPEC.md §0).
+export const polygonClient = createPublicClient({ transport: http(POLYGON_RPC) })
+
+export type ExecutionMode = 'fork' | 'venue'
+
+export const EXECUTION_MODE: ExecutionMode = process.env.EXECUTION_MODE === 'venue' ? 'venue' : 'fork'
+
 export async function forkRpc(method: string, params: unknown[]): Promise<unknown> {
   const res = await fetch(FORK_RPC, {
     method: 'POST',
@@ -38,7 +50,9 @@ export interface TokenHolder {
 // impersonates one instead of splitting (negRisk position ids cannot be
 // reproduced with a raw CTF split, see SPEC.md §10).
 export async function findHolders(conditionId: string, tokenId: string): Promise<TokenHolder[]> {
-  const res = await fetch(`https://data-api.polymarket.com/holders?market=${conditionId}&limit=20`)
+  // 20 was not enough depth on the thin tail buckets: a 1000-share leg can
+  // exhaust the top holders and abort the cover on an otherwise fresh fork.
+  const res = await fetch(`https://data-api.polymarket.com/holders?market=${conditionId}&limit=100`)
   if (!res.ok) return []
   const data = await res.json()
   const entry = (Array.isArray(data) ? data : []).find((t: any) => t.token === tokenId)

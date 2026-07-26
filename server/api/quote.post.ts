@@ -1,5 +1,6 @@
 import { findCoverOption } from '../utils/catalog'
 import { buildBasket, priceBasketFromBook } from '../utils/basket'
+import { EXECUTION_MODE } from '../utils/chain'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
@@ -17,5 +18,9 @@ export default defineEventHandler(async (event) => {
   if (!basket) throw createError({ statusCode: 422, statusMessage: 'no bucket covers this threshold' })
   const priced = await priceBasketFromBook(basket)
 
-  return { option: { id: option.id, question: option.question, city: option.city, date: option.date, peril: option.peril }, basket: priced }
+  return {
+    option: { id: option.id, question: option.question, city: option.city, date: option.date, peril: option.peril, unit: option.unit },
+    basket: priced,
+    executionMode: EXECUTION_MODE,
+  }
 })
