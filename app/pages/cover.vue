@@ -128,7 +128,9 @@ const POLYGON = {
   chainId: '0x89',
   chainName: 'Polygon',
   nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-  rpcUrls: ['https://polygon-rpc.com'],
+  // polygon-rpc.com returns "tenant disabled" (403) as of 2026-07-26, so a
+  // wallet that has to add Polygon would land on a dead endpoint.
+  rpcUrls: ['https://polygon-bor-rpc.publicnode.com'],
   blockExplorerUrls: ['https://polygonscan.com'],
 }
 
