@@ -1,5 +1,6 @@
 import type { CoverOption } from './catalog'
 import { singleOrderThreshold } from './basket'
+import { brokerCompletion } from './zg-broker'
 
 export interface Exposure {
   optionId: string
@@ -142,18 +143,20 @@ function mockTurn(history: ChatMessage[], options: CoverOption[]): AgentTurn {
   }
 }
 
+// Inference tiers: Router key, then the direct compute broker (wallet-signed
+// requests settled on Galileo), then the scripted interview.
 export async function runAgentTurn(history: ChatMessage[], options: CoverOption[]): Promise<AgentTurn> {
   const apiKey = process.env.ZG_ROUTER_API_KEY
-  if (!apiKey) return mockTurn(history, options)
-
   const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt(options) }, ...history]
+
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const raw = await callRouter(messages, apiKey)
+      const raw = apiKey ? await callRouter(messages, apiKey) : await brokerCompletion(messages)
+      if (raw === null) break
       const turn = validateTurn(raw, options)
       if (turn) return turn
       messages.push({ role: 'assistant', content: raw }, { role: 'user', content: 'Invalid: respond with the exact JSON shape only.' })
-    } catch (err) {
+    } catch {
       if (attempt === 2) break
     }
   }
