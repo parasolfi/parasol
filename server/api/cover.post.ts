@@ -3,7 +3,8 @@ import { findCoverOption } from '../utils/catalog'
 import { basketTotal, buildBasket, priceBasketFromBook } from '../utils/basket'
 import { issuePolicy } from '../utils/policies'
 import { CTF_ADDRESS, ctfAbi, forkClient, forkRpc, findHolders, polygonClient, EXECUTION_MODE, FORK_RPC } from '../utils/chain'
-import { verifyCoverAuthorization } from '../utils/authorization'
+import { AUTHORIZATION_WINDOW_MS, NONCE_RE, claimNonce, verifyCoverAuthorization } from '../utils/authorization'
+import { isNonceSpent } from '../utils/policies'
 
 // Fork-mode settlement: impersonate live holders of each leg's YES token and
 // deliver the exact clobTokenIds at the quoted size. Real prices, real tokens,
@@ -107,12 +108,23 @@ async function runTransfers(tokenId: string, transfers: Transfer[], to: Address)
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const { optionId, threshold, payoutUsdc, holder, profile, signature, maxPremiumUsdc } = body ?? {}
-  if (typeof optionId !== 'string' || typeof threshold !== 'number' || typeof payoutUsdc !== 'number' || typeof holder !== 'string')
+  const { optionId, threshold, payoutUsdc, holder, profile, signature, maxPremiumUsdc, nonce, deadline } = body ?? {}
+  if (typeof optionId !== 'string' || !Number.isFinite(threshold) || !Number.isFinite(payoutUsdc) || typeof holder !== 'string')
     throw createError({ statusCode: 400, statusMessage: 'optionId, threshold, payoutUsdc, holder required' })
   if (!/^0x[0-9a-fA-F]{40}$/.test(holder)) throw createError({ statusCode: 400, statusMessage: 'holder must be an address' })
-  if (typeof maxPremiumUsdc !== 'number' || !(maxPremiumUsdc > 0))
+  // /api/quote bounds the payout; posting straight here used to skip that.
+  if (payoutUsdc <= 0 || payoutUsdc > 10_000)
+    throw createError({ statusCode: 400, statusMessage: 'payoutUsdc out of range' })
+  if (!Number.isFinite(maxPremiumUsdc) || !(maxPremiumUsdc > 0))
     throw createError({ statusCode: 400, statusMessage: 'maxPremiumUsdc required' })
+  if (typeof nonce !== 'string' || !NONCE_RE.test(nonce))
+    throw createError({ statusCode: 400, statusMessage: 'nonce required' })
+
+  const deadlineMs = typeof deadline === 'string' ? Date.parse(deadline) : NaN
+  if (!Number.isFinite(deadlineMs)) throw createError({ statusCode: 400, statusMessage: 'deadline required' })
+  if (deadlineMs < Date.now()) throw createError({ statusCode: 401, statusMessage: 'authorization expired — sign again' })
+  if (deadlineMs > Date.now() + AUTHORIZATION_WINDOW_MS)
+    throw createError({ statusCode: 400, statusMessage: 'deadline too far out' })
 
   const option = await findCoverOption(optionId)
   if (!option) throw createError({ statusCode: 404, statusMessage: 'unknown cover option' })
@@ -132,10 +144,18 @@ export default defineEventHandler(async (event) => {
       payout: `${payoutUsdc} USDC`,
       maxPremium: `${maxPremiumUsdc} USDC`,
       holder: holder as Address,
+      nonce,
+      deadline,
     },
     signature as `0x${string}`,
   )
   if (!authorized) throw createError({ statusCode: 401, statusMessage: 'authorization does not match this cover' })
+
+  // Claimed before anything executes, and never released: a cover that failed
+  // half-way needs a fresh signature, not a retry of the one that already
+  // reached delivery.
+  if (!claimNonce(nonce, isNonceSpent))
+    throw createError({ statusCode: 409, statusMessage: 'this authorization has already been used — sign again' })
 
   const total = basketTotal(basket)
 
@@ -197,6 +217,7 @@ export default defineEventHandler(async (event) => {
       feesUsdc: basket.feesUsdc,
       profile: typeof profile === 'string' ? profile : '',
       authorization: signature,
+      nonce,
     },
     { city: option.city, peril: option.peril, date: option.date },
   )

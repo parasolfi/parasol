@@ -42,17 +42,3 @@ export async function getIndexedResolution(conditionId: string): Promise<Indexed
     return null
   }
 }
-
-export async function getSubgraphHead(): Promise<number | null> {
-  try {
-    const res = await fetch(POLYMARKET_SUBGRAPH, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: '{ _meta { block { number } } }' }),
-    })
-    const data = await res.json()
-    return Number(data?.data?._meta?.block?.number) || null
-  } catch {
-    return null
-  }
-}
