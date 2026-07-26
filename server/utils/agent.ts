@@ -108,7 +108,7 @@ function factsToExposure(facts: any, options: CoverOption[]): Exposure | null {
 function validateTurn(raw: string, options: CoverOption[], source: InferenceSource): AgentTurn | null {
   let parsed: any
   try {
-    parsed = JSON.parse(raw.replace(/^```(json)?|```$/g, '').trim())
+    parsed = JSON.parse(raw.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/^```(json)?|```$/g, '').trim())
   } catch {
     return null
   }
@@ -124,7 +124,15 @@ async function callRouter(messages: ChatMessage[], apiKey: string): Promise<stri
   const res = await fetch(`${ROUTER_URL}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: MODEL, messages, temperature: 0.3 }),
+    body: JSON.stringify({
+      model: MODEL,
+      messages,
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+      // 0gm-1.0 reasons by default and emits the trace before the answer, which
+      // would land inside the completion the parser reads.
+      chat_template_kwargs: { enable_thinking: false },
+    }),
   })
   if (!res.ok) throw new Error(`router ${res.status}: ${(await res.text()).slice(0, 200)}`)
   const data = await res.json()
