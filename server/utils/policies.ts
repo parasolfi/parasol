@@ -14,6 +14,7 @@ export interface PolicyRecord {
   conditionIds: string[]
   shares: number
   premiumUsdc: number
+  feesUsdc: number
   profile: string
   authorization: string
   issuedAt: string
