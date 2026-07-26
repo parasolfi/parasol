@@ -155,6 +155,31 @@ async function connectWallet() {
   await ensurePolygon()
 }
 
+const SEPOLIA_CHAIN_ID = '0xaa36a7'
+const authorizing = ref(false)
+const authorizeState = ref<'idle' | 'done' | 'error'>('idle')
+
+// The name owner grants the server write access to the policy record keys by
+// signing one multicall in their own wallet — no key ever leaves MetaMask.
+async function authorizeEnsWriter() {
+  const eth = (window as any).ethereum
+  if (!eth || authorizing.value) return
+  authorizing.value = true
+  authorizeState.value = 'idle'
+  try {
+    const { tx } = await $fetch<{ tx: { to: string; data: string } }>('/api/ens/authorize-tx')
+    const [from] = await eth.request({ method: 'eth_requestAccounts' })
+    if ((await eth.request({ method: 'eth_chainId' })) !== SEPOLIA_CHAIN_ID)
+      await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: SEPOLIA_CHAIN_ID }] })
+    await eth.request({ method: 'eth_sendTransaction', params: [{ from, to: tx.to, data: tx.data }] })
+    authorizeState.value = 'done'
+  } catch {
+    authorizeState.value = 'error'
+  } finally {
+    authorizing.value = false
+  }
+}
+
 async function switchOption(alt: Alternative) {
   if (!exposure.value) return
   const res = await $fetch<{ option: Quote['option']; basket: Quote['basket'] }>('/api/quote', {
@@ -255,6 +280,17 @@ async function buy() {
           >{{ brokerData.broker.name }}</a
         >
         <span v-if="brokerData.broker.policiesPublished"> · {{ brokerData.broker.policiesPublished }} policies on ENS</span>
+        <button
+          v-else
+          type="button"
+          class="ml-2 text-teal underline decoration-dotted hover:no-underline disabled:opacity-50"
+          :disabled="authorizing"
+          @click="authorizeEnsWriter"
+        >
+          {{ authorizing ? 'sign in your wallet…' : 'let Parasol publish policies here' }}
+        </button>
+        <span v-if="authorizeState === 'done'" class="ml-2 text-teal">authorized — new policies will publish themselves</span>
+        <span v-if="authorizeState === 'error'" class="ml-2 text-red-600/70">authorization cancelled</span>
       </p>
 
       <div class="mt-10 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
