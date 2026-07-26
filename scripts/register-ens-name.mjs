@@ -1,67 +1,80 @@
-// Registers ENS_PARENT_NAME on Sepolia for ENS_SIGNER_PRIVATE_KEY, then the
-// server publishes one subname per policy. Needs Sepolia ETH on that wallet.
+// Registers ENS_PARENT_NAME on Sepolia so the server can publish one subname
+// per policy. The current controller takes a Registration struct — the older
+// flat-parameter controller (0xFED6…) is deauthorized and reverts.
 import { createPublicClient, createWalletClient, http, namehash, parseAbi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { sepolia } from 'viem/chains'
 
-const CONTROLLER = '0xFED6a969AaA60E4961FCD3EBF1A2e8913ac65B72'
-const PUBLIC_RESOLVER = '0x8FADE66B79cC9f707aB26799354482EB93a5B7dD'
+const CONTROLLER = '0xfb3cE5D01e0f33f41DbB39035dB9745962F1f968'
+const PUBLIC_RESOLVER = process.env.ENS_RESOLVER ?? '0xE99638b40E4Fff0129D56f03b55b6bbC4BBE49b5'
 const REGISTRY = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'
 const RPC = process.env.SEPOLIA_RPC_URL ?? 'https://ethereum-sepolia-rpc.publicnode.com'
 const DURATION = 31556952n
+const ZERO32 = `0x${'00'.repeat(32)}`
 
 const label = (process.env.ENS_PARENT_NAME ?? 'parasolfi.eth').replace(/\.eth$/, '')
 const account = privateKeyToAccount(process.env.ENS_SIGNER_PRIVATE_KEY)
 const pub = createPublicClient({ chain: sepolia, transport: http(RPC) })
 const wallet = createWalletClient({ account, chain: sepolia, transport: http(RPC) })
 
-const controllerAbi = parseAbi([
-  'function available(string name) view returns (bool)',
-  'function rentPrice(string name, uint256 duration) view returns ((uint256 base, uint256 premium))',
-  'function makeCommitment(string name, address owner, uint256 duration, bytes32 secret, address resolver, bytes[] data, bool reverseRecord, uint16 ownerControlledFuses) pure returns (bytes32)',
+const abi = parseAbi([
+  'struct Registration { string label; address owner; uint256 duration; bytes32 secret; address resolver; bytes[] data; uint8 reverseRecord; bytes32 referrer; }',
+  'function available(string label) view returns (bool)',
+  'function rentPrice(string label, uint256 duration) view returns ((uint256 base, uint256 premium))',
+  'function makeCommitment(Registration registration) pure returns (bytes32)',
   'function commit(bytes32 commitment)',
-  'function register(string name, address owner, uint256 duration, bytes32 secret, address resolver, bytes[] data, bool reverseRecord, uint16 ownerControlledFuses) payable',
+  'function commitments(bytes32) view returns (uint256)',
+  'function minCommitmentAge() view returns (uint256)',
+  'function register(Registration registration) payable',
 ])
 
-console.log('wallet:', account.address)
-console.log('balance:', (await pub.getBalance({ address: account.address })).toString(), 'wei')
+const registration = {
+  label,
+  owner: account.address,
+  duration: DURATION,
+  secret: `0x${(process.env.ENS_SECRET_BYTE ?? '44').repeat(32)}`,
+  resolver: PUBLIC_RESOLVER,
+  data: [],
+  reverseRecord: 0,
+  referrer: ZERO32,
+}
 
-const available = await pub.readContract({ address: CONTROLLER, abi: controllerAbi, functionName: 'available', args: [label] })
-console.log(`${label}.eth available:`, available)
-if (!available) {
+console.log('wallet:', account.address, '| balance:', (await pub.getBalance({ address: account.address })).toString())
+
+if (!(await pub.readContract({ address: CONTROLLER, abi, functionName: 'available', args: [label] }))) {
   const owner = await pub.readContract({
     address: REGISTRY,
     abi: parseAbi(['function owner(bytes32 node) view returns (address)']),
     functionName: 'owner',
     args: [namehash(`${label}.eth`)],
   })
-  console.log('already registered to:', owner)
-  console.log(owner.toLowerCase() === account.address.toLowerCase() ? 'we own it — nothing to do' : 'pick another ENS_PARENT_NAME')
-  process.exit(owner.toLowerCase() === account.address.toLowerCase() ? 0 : 1)
+  const ours = owner.toLowerCase() === account.address.toLowerCase()
+  console.log(ours ? `already ours: ${label}.eth` : `taken by ${owner} — pick another ENS_PARENT_NAME`)
+  process.exit(ours ? 0 : 1)
 }
 
-const price = await pub.readContract({ address: CONTROLLER, abi: controllerAbi, functionName: 'rentPrice', args: [label, DURATION] })
-const total = price.base + price.premium
-console.log('price:', total.toString(), 'wei')
+const price = await pub.readContract({ address: CONTROLLER, abi, functionName: 'rentPrice', args: [label, DURATION] })
+const value = ((price.base + price.premium) * 110n) / 100n
+console.log('price:', (price.base + price.premium).toString(), '| sending:', value.toString())
 
-const secret = `0x${'11'.repeat(32)}`
-const args = [label, account.address, DURATION, secret, PUBLIC_RESOLVER, [], false, 0]
+const commitment = await pub.readContract({ address: CONTROLLER, abi, functionName: 'makeCommitment', args: [registration] })
+const existing = await pub.readContract({ address: CONTROLLER, abi, functionName: 'commitments', args: [commitment] })
+const minAge = await pub.readContract({ address: CONTROLLER, abi, functionName: 'minCommitmentAge' })
 
-const commitment = await pub.readContract({ address: CONTROLLER, abi: controllerAbi, functionName: 'makeCommitment', args })
-const commitTx = await wallet.writeContract({ address: CONTROLLER, abi: controllerAbi, functionName: 'commit', args: [commitment] })
-console.log('commit tx:', commitTx)
-await pub.waitForTransactionReceipt({ hash: commitTx })
+if (existing === 0n) {
+  const commitTx = await wallet.writeContract({ address: CONTROLLER, abi, functionName: 'commit', args: [commitment] })
+  console.log('commit tx:', commitTx)
+  await pub.waitForTransactionReceipt({ hash: commitTx })
+}
 
-console.log('waiting 60s for the commitment to mature...')
-await new Promise((r) => setTimeout(r, 60_000))
+const waitFor = Number(minAge) + 15
+console.log(`waiting ${waitFor}s for the commitment to mature...`)
+await new Promise((r) => setTimeout(r, waitFor * 1000))
 
-const registerTx = await wallet.writeContract({
-  address: CONTROLLER,
-  abi: controllerAbi,
-  functionName: 'register',
-  args,
-  value: (total * 110n) / 100n,
-})
-console.log('register tx:', registerTx)
-await pub.waitForTransactionReceipt({ hash: registerTx })
+await pub.simulateContract({ address: CONTROLLER, abi, functionName: 'register', args: [registration], value, account })
+console.log('simulation OK')
+
+const tx = await wallet.writeContract({ address: CONTROLLER, abi, functionName: 'register', args: [registration], value })
+console.log('register tx:', tx)
+await pub.waitForTransactionReceipt({ hash: tx })
 console.log(`registered ${label}.eth — set ENS_PARENT_NAME=${label}.eth`)
