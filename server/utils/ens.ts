@@ -37,6 +37,15 @@ export function policyName(city: string, peril: string, date: string, id: number
   return `${policyLabel(city, peril, date, id)}.${PARENT}`
 }
 
+// A policy outlives its market: yesterday's event is gone from the catalogue by
+// the time it pays out, so the name is derived from the policy's own question.
+export function policyNameFromQuestion(question: string, id: number): string | null {
+  const m = question.match(/(highest|lowest) temperature in (.+?) on ([A-Za-z]+\s*\d{1,2})/i)
+  if (!m) return null
+  const peril = m[1]!.toLowerCase() === 'highest' ? 'heat' : 'cold'
+  return policyName(m[2]!, peril, m[3]!, id)
+}
+
 export function policyRecords(policy: {
   question: string
   shares: number
