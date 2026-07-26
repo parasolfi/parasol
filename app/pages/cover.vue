@@ -7,7 +7,7 @@ interface ChatMessage {
 interface Quote {
   option: { id: string; question: string; city: string; date: string; peril: string; unit: string }
   basket: {
-    legs: { tokenId: string; label: string; ask: number; shares: number }[]
+    legs: { tokenId: string; conditionId: string; label: string; ask: number; shares: number; limitPrice?: number }[]
     payoutUsdc: number
     premiumUsdc: number
     feesUsdc: number
@@ -15,6 +15,7 @@ interface Quote {
     impliedProbability: number
     signatureCount: number
   }
+  executionMode?: 'fork' | 'venue'
 }
 
 interface Exposure {
@@ -63,6 +64,10 @@ const holder = ref('')
 const manualEntry = ref(false)
 const buying = ref(false)
 const buyError = ref('')
+// Venue mode asks for several wallet confirmations in a row; naming the current
+// one stops it looking like a hang.
+const buyStep = ref('')
+const clob = useClob()
 
 const holderEns = ref<string | null>(null)
 const shortHolder = computed(() =>
@@ -241,6 +246,34 @@ async function buy() {
   try {
     const maxPremiumUsdc = quote.value!.basket.maxPremiumUsdc
     const signature = await signCover()
+
+    // Venue mode: the wallet buys the positions on Polymarket itself, before
+    // the server is told anything. Parasol never holds funds and never relays
+    // an order — the CLOB accepts cross-origin posts straight from the browser.
+    if (quote.value!.executionMode === 'venue') {
+      buyStep.value = 'Approving collateral…'
+      await clob.ensureCollateral(maxPremiumUsdc)
+
+      buyStep.value = 'Signing in to Polymarket…'
+      await clob.authenticate()
+
+      buyStep.value = `Buying ${quote.value!.basket.legs.length} position(s)…`
+      const fills = await clob.executeBasket(
+        quote.value!.basket.legs.map((l) => ({
+          tokenId: l.tokenId,
+          conditionId: l.conditionId,
+          label: l.label,
+          shares: l.shares,
+          limitPrice: l.limitPrice ?? l.ask,
+        })),
+      )
+
+      const failed = fills.filter((f) => f.error)
+      if (failed.length) throw new Error(failed.map((f) => `${f.leg.label}: ${f.error}`).join(' · '))
+
+      buyStep.value = 'Confirming settlement…'
+    }
+
     await $fetch('/api/cover', {
       method: 'POST',
       body: {
@@ -261,6 +294,7 @@ async function buy() {
     buyError.value = err?.data?.statusMessage ?? err?.message ?? 'execution failed'
   } finally {
     buying.value = false
+    buyStep.value = ''
   }
 }
 </script>
@@ -391,7 +425,7 @@ async function buy() {
                 :disabled="!holder || buying"
                 @click="buy"
               >
-                {{ buying ? 'Sign in your wallet, then executing…' : 'Cover me' }}
+                {{ buying ? (buyStep || 'Sign in your wallet, then executing…') : 'Cover me' }}
               </button>
               <p v-if="buyError" class="mt-2 text-center text-xs text-red-600/70">{{ buyError }}</p>
               <p class="mt-2 text-center text-xs text-ink/35">Your key authorizes the cover. Position delivered to your wallet, priced against Polymarket.</p>
