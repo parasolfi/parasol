@@ -1,4 +1,5 @@
-import { createPublicClient, createWalletClient, http, labelhash, namehash, parseAbi, type Address } from 'viem'
+import { createPublicClient, createWalletClient, http, namehash, parseAbi, toHex, type Address } from 'viem'
+import { packetToBytes } from 'viem/ens'
 import { privateKeyToAccount } from 'viem/accounts'
 import { mainnet, sepolia } from 'viem/chains'
 
@@ -7,15 +8,6 @@ export const ENS_PARENT = PARENT
 const NETWORK = process.env.ENS_NETWORK ?? 'sepolia'
 const SEPOLIA_RPC = process.env.SEPOLIA_RPC_URL ?? 'https://ethereum-sepolia-rpc.publicnode.com'
 const MAINNET_RPC = process.env.ETH_RPC_URL ?? 'https://ethereum-rpc.publicnode.com'
-
-export const ENS_REGISTRY: Address = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'
-export const SEPOLIA_PUBLIC_RESOLVER: Address = '0x8FADE66B79cC9f707aB26799354482EB93a5B7dD'
-
-const registryAbi = parseAbi([
-  'function owner(bytes32 node) view returns (address)',
-  'function resolver(bytes32 node) view returns (address)',
-  'function setSubnodeRecord(bytes32 node, bytes32 label, address owner, address resolver, uint64 ttl)',
-])
 
 const resolverAbi = parseAbi([
   'function setText(bytes32 node, string key, string value)',
@@ -74,66 +66,62 @@ export interface PublishedName {
   txHashes: string[]
 }
 
-// Writing needs the parent name owned by ENS_SIGNER_PRIVATE_KEY; without it
-// the name is still derived and displayed, just not published.
+const SEPOLIA_UNIVERSAL_RESOLVER: Address = '0xeeeeeeee14d718c2b47d9923deab1335e144eeee'
+
+const universalResolverAbi = parseAbi([
+  'function findResolver(bytes name) view returns (address, bytes32, uint256)',
+])
+
+async function parentResolver(): Promise<Address | null> {
+  try {
+    const [resolver] = await policyClient.readContract({
+      address: SEPOLIA_UNIVERSAL_RESOLVER,
+      abi: universalResolverAbi,
+      functionName: 'findResolver',
+      args: [toHex(packetToBytes(PARENT))],
+    })
+    return resolver === '0x0000000000000000000000000000000000000000' ? null : resolver
+  } catch {
+    return null
+  }
+}
+
+// The parent's resolver is an ENSv2 PermissionedResolver with a wildcard
+// (ENSIP-10) lookup, so records written on a policy's own node resolve without
+// the subname existing in any registry. Writing needs ROLE_SET_TEXT on each
+// key, granted once by the name owner via scripts/authorize-ens-writer.mjs.
 export async function publishPolicyName(
   label: string,
   records: Record<string, string>,
 ): Promise<PublishedName | null> {
   const key = process.env.ENS_SIGNER_PRIVATE_KEY
   if (!key) return null
+  const resolver = await parentResolver()
+  if (!resolver) return null
   try {
     const account = privateKeyToAccount(key as `0x${string}`)
     const wallet = createWalletClient({ account, chain: writeChain, transport: http(writeRpc) })
-    const parentNode = namehash(PARENT)
-    const owner = await policyClient.readContract({
-      address: ENS_REGISTRY,
-      abi: registryAbi,
-      functionName: 'owner',
-      args: [parentNode],
-    })
-    if (owner.toLowerCase() !== account.address.toLowerCase()) return null
-
-    const labelHash = labelhash(label)
     const name = `${label}.${PARENT}`
     const node = namehash(name)
     const txHashes: string[] = []
 
-    const subOwner = await policyClient.readContract({
-      address: ENS_REGISTRY,
-      abi: registryAbi,
-      functionName: 'owner',
-      args: [node],
-    })
-    if (subOwner.toLowerCase() !== account.address.toLowerCase()) {
-      const tx = await wallet.writeContract({
-        address: ENS_REGISTRY,
-        abi: registryAbi,
-        functionName: 'setSubnodeRecord',
-        args: [parentNode, labelHash, account.address, SEPOLIA_PUBLIC_RESOLVER, 0n],
-      })
-      await policyClient.waitForTransactionReceipt({ hash: tx })
-      txHashes.push(tx)
-    }
-
     for (const [recordKey, value] of Object.entries(records)) {
       const tx = await wallet.writeContract({
-        address: SEPOLIA_PUBLIC_RESOLVER,
+        address: resolver,
         abi: resolverAbi,
         functionName: 'setText',
         args: [node, recordKey, value],
       })
       txHashes.push(tx)
     }
-    if (txHashes.length > 0) await policyClient.waitForTransactionReceipt({ hash: txHashes.at(-1) as `0x${string}` })
+    if (txHashes.length === 0) return null
+    await policyClient.waitForTransactionReceipt({ hash: txHashes.at(-1) as `0x${string}` })
 
-    return { name, network: writeChain.name, resolver: SEPOLIA_PUBLIC_RESOLVER, txHashes }
+    return { name, network: writeChain.name, resolver, txHashes }
   } catch {
     return null
   }
 }
-
-const SEPOLIA_UNIVERSAL_RESOLVER: Address = '0xeeeeeeee14d718c2b47d9923deab1335e144eeee'
 
 // ENSv2 names are not in the legacy registry, so records resolve through the
 // UniversalResolver instead of looking the resolver up directly.
