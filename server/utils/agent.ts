@@ -40,19 +40,22 @@ function citiesMentioned(options: CoverOption[], text: string): string[] {
   return [...new Set(options.map((o) => o.city))].filter((c) => new RegExp(`\\b${c}\\b`, 'i').test(text))
 }
 
+// The provider caps requests at 2000 tokens/min, so the market table is only
+// sent for cities the client actually named; otherwise the city names alone.
 function relevantOptions(options: CoverOption[], history: ChatMessage[]): CoverOption[] {
   const text = history.filter((m) => m.role === 'user').map((m) => m.content).join(' ')
   const cities = citiesMentioned(options, text)
-  return cities.length > 0 ? options.filter((o) => cities.includes(o.city)) : options
+  return cities.length > 0 ? options.filter((o) => cities.includes(o.city)) : []
 }
 
 function systemPrompt(options: CoverOption[], allCities: string[]): string {
+  const markets = options.length
+    ? `MARKETS FOR THE CITY THEY NAMED (id | city | date | peril | bucket range):\n${catalogDigest(options)}\n`
+    : ''
   return `You are Parasol's cover broker. You interview a business owner and extract four facts. You never pick markets or compute prices — the pricing engine does that from your facts.
 
-MARKETS AVAILABLE (city | date | peril | bucket range):
-${catalogDigest(options)}
-
-All coverable cities: ${allCities.join(', ')}.
+${markets}
+Coverable cities: ${allCities.join(', ')}.
 
 Ask short, warm questions until you know all four facts:
 1. city — must be one of the coverable cities above
@@ -63,7 +66,14 @@ Ask short, warm questions until you know all four facts:
 Respond ONLY with JSON, no markdown fences:
 {"reply": "<what you say to the client>", "facts": null | {"city": "<exact city name>", "peril": "heat"|"cold", "degrees": <number>, "cost": <number>, "rationale": "<one line>"}}
 
-Keep facts null until you have all four. Repeat back their own numbers — never substitute your own. If their city is not coverable, keep facts null and say which cities are.`
+Keep facts null until you have all four. Repeat back their own numbers — never substitute your own.
+
+CRITICAL: if the client names a city that is NOT in the coverable list above, say plainly that you cannot cover that city yet and name it. Do NOT list alternative cities yourself — the interface shows the authoritative list. Never pretend to gather more details about an uncoverable city, and never silently switch them to another city.`
+}
+
+function coverableCitiesLine(options: CoverOption[]): string {
+  const cities = [...new Set(options.map((o) => o.city))].sort()
+  return `Coverable today: ${cities.slice(0, 12).join(', ')} — and ${cities.length - 12} more.`
 }
 
 // The model extracts facts; the engine owns market choice and threshold, so a
@@ -189,7 +199,12 @@ export async function runAgentTurn(history: ChatMessage[], options: CoverOption[
       const raw = apiKey ? await callRouter(messages, apiKey) : await brokerCompletion(messages)
       if (raw === null) break
       const turn = validateTurn(raw, scoped, source)
-      if (turn) return turn
+      if (turn) {
+        const namedCoverable = citiesMentioned(options, history.filter((m) => m.role === 'user').map((m) => m.content).join(' '))
+        if (!turn.exposure && namedCoverable.length === 0)
+          turn.reply = `${turn.reply}\n\n${coverableCitiesLine(options)}`
+        return turn
+      }
       messages.push(
         { role: 'assistant', content: raw },
         { role: 'user', content: 'Invalid. Use the exact JSON shape, a coverable city, and my own numbers.' },
