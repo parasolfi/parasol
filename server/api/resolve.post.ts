@@ -44,42 +44,57 @@ async function legOutcome(conditionId: string, tokenId: string): Promise<{ won: 
 
   const m = await getPolymarketMarket(conditionId)
   if (!m?.resolution || m.resolution.status !== 'Resolved') return null
+
+  // A token the venue does not list, or a resolution with no identified
+  // winner, is unknown — not a loss. Reporting false here paid nothing on a
+  // cover that may well have won.
   const yes = m.outcomes.find((o) => o.venueOutcomeId === tokenId)
-  return { won: yes ? m.resolution.winningOutcomeIndex === yes.outcomeIndex : false, via: 'venue-api' }
+  if (!yes || m.resolution.winningOutcomeIndex === null) return null
+  return { won: m.resolution.winningOutcomeIndex === yes.outcomeIndex, via: 'venue-api' }
 }
 
 export default defineEventHandler(async () => {
-  const updates: { id: number; status: string; via?: string }[] = []
+  const updates: { id: number; status: string; via?: string; error?: string }[] = []
   for (const p of listPolicies()) {
     if (p.status !== 'Issued' && p.status !== 'ResolvedYes') continue
 
     let via = 'none'
-    if (p.status === 'Issued') {
-      const buckets = await Promise.all(
-        p.tokenIds.map(async (tokenId, i) => {
-          const conditionId = p.conditionIds?.[i]
-          if (!conditionId) return null
-          return legOutcome(conditionId, tokenId)
-        }),
-      )
-      if (buckets.some((b) => b === null)) continue
 
-      // One leg served by the venue API means the subgraph did not carry this
-      // policy, whatever the other legs did. Reporting the last leg's source
-      // would let a single indexed bucket pass the whole basket off as indexed.
-      via = buckets.every((b) => b!.via === 'subgraph') ? 'subgraph' : 'venue-api'
+    // One unreachable RPC or one reverted payout used to abort the whole run
+    // with a 500, losing every update already made and leaving the policies
+    // behind it untouched. Each policy now fails on its own.
+    try {
+      if (p.status === 'Issued') {
+        const buckets = await Promise.all(
+          p.tokenIds.map(async (tokenId, i) => {
+            const conditionId = p.conditionIds?.[i]
+            if (!conditionId) return null
+            return legOutcome(conditionId, tokenId)
+          }),
+        )
+        if (buckets.some((b) => b === null)) continue
 
-      const won = buckets.some((b) => b!.won)
-      updatePolicyStatus(p.id, won ? 'ResolvedYes' : 'ResolvedNo')
-      if (!won) {
-        updates.push({ id: p.id, status: 'ResolvedNo', via })
-        continue
+        // One leg served by the venue API means the subgraph did not carry this
+        // policy, whatever the other legs did. Reporting the last leg's source
+        // would let a single indexed bucket pass the whole basket off as indexed.
+        via = buckets.every((b) => b!.via === 'subgraph') ? 'subgraph' : 'venue-api'
+
+        const won = buckets.some((b) => b!.won)
+        updatePolicyStatus(p.id, won ? 'ResolvedYes' : 'ResolvedNo')
+        if (!won) {
+          updates.push({ id: p.id, status: 'ResolvedNo', via })
+          continue
+        }
       }
-    }
 
-    await payOut(p.holder as Address, p.shares)
-    updatePolicyStatus(p.id, 'Paid')
-    updates.push({ id: p.id, status: 'Paid', via })
+      await payOut(p.holder as Address, p.shares)
+      updatePolicyStatus(p.id, 'Paid')
+      updates.push({ id: p.id, status: 'Paid', via })
+    }
+    catch (err) {
+      // The status stays ResolvedYes, so the next run retries the payout.
+      updates.push({ id: p.id, status: p.status, via, error: err instanceof Error ? err.message : String(err) })
+    }
   }
   return { updates }
 })

@@ -5,7 +5,6 @@
 // doesn't scale (see project notes). Polymarket already runs a complete,
 // instant index of its own data — reuse it for point lookups.
 
-const GAMMA_API = 'https://gamma-api.polymarket.com';
 const CLOB_API = 'https://clob.polymarket.com';
 
 export interface NormalizedOutcome {
@@ -35,7 +34,7 @@ export interface NormalizedMarket {
 interface ClobToken {
   token_id: string;
   outcome: string;
-  price: number;
+  price: number | string;
 }
 
 interface ClobMarket {
@@ -45,8 +44,13 @@ interface ClobMarket {
   tokens: ClobToken[];
 }
 
+// The CLOB serializes prices as numbers on some routes and as strings on
+// others, and a settled outcome reads 0.9995 as often as a clean 1. A strict
+// `=== 1` silently reported "no winner", which resolution reads as a loss.
+const RESOLVED_WINNER_PRICE = 0.99;
+
 function normalizeClobMarket(m: ClobMarket): NormalizedMarket {
-  const winningIndex = m.closed ? m.tokens.findIndex((t) => t.price === 1) : -1;
+  const winningIndex = m.closed ? m.tokens.findIndex((t) => Number(t.price) >= RESOLVED_WINNER_PRICE) : -1;
 
   return {
     id: `polymarket-${m.condition_id}`,
@@ -57,7 +61,7 @@ function normalizeClobMarket(m: ClobMarket): NormalizedMarket {
     outcomes: m.tokens.map((t, i) => ({
       outcomeIndex: i,
       label: t.outcome,
-      impliedProbability: t.price,
+      impliedProbability: Number(t.price),
       venueOutcomeId: t.token_id,
     })),
     resolution: m.closed
@@ -69,29 +73,6 @@ function normalizeClobMarket(m: ClobMarket): NormalizedMarket {
         }
       : null,
   };
-}
-
-// Gamma's own search only returns Gamma-shaped market objects (question +
-// conditionId, no live tokens/prices) — for a consistent shape with
-// getPolymarketMarket, this re-fetches each hit from the CLOB by conditionId
-// rather than normalizing Gamma's shape separately.
-export async function searchPolymarketMarkets(query: string, limit = 20): Promise<NormalizedMarket[]> {
-  const res = await fetch(`${GAMMA_API}/public-search?q=${encodeURIComponent(query)}&limit_per_type=${limit}`);
-  const data = await res.json();
-
-  const conditionIds: string[] = [];
-  for (const event of data.events ?? []) {
-    for (const m of event.markets ?? []) {
-      if (m.conditionId) conditionIds.push(m.conditionId);
-    }
-  }
-
-  const markets: NormalizedMarket[] = [];
-  for (const conditionId of conditionIds.slice(0, limit)) {
-    const market = await getPolymarketMarket(conditionId);
-    if (market) markets.push(market);
-  }
-  return markets;
 }
 
 export async function getPolymarketMarket(conditionId: string): Promise<NormalizedMarket | null> {
