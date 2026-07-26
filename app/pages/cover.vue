@@ -118,11 +118,45 @@ async function switchOption(alt: Alternative) {
     ]
 }
 
+const COVER_DOMAIN = { name: 'Parasol', version: '1', chainId: 137 }
+const COVER_TYPES = {
+  EIP712Domain: [
+    { name: 'name', type: 'string' },
+    { name: 'version', type: 'string' },
+    { name: 'chainId', type: 'uint256' },
+  ],
+  Cover: [
+    { name: 'market', type: 'string' },
+    { name: 'threshold', type: 'string' },
+    { name: 'payout', type: 'string' },
+    { name: 'premium', type: 'string' },
+    { name: 'holder', type: 'address' },
+  ],
+}
+
+async function signCover(): Promise<string> {
+  if (!quote.value || !exposure.value) throw new Error('no quote')
+  const eth = (window as any).ethereum
+  if (!eth) throw new Error('no wallet: connect one to authorize the cover')
+  const message = {
+    market: quote.value.option.question,
+    threshold: `${exposure.value.threshold}°${quote.value.option.unit}`,
+    payout: `${exposure.value.payoutUsdc} USDC`,
+    premium: `${quote.value.basket.premiumUsdc} USDC`,
+    holder: holder.value,
+  }
+  return await eth.request({
+    method: 'eth_signTypedData_v4',
+    params: [holder.value, JSON.stringify({ domain: COVER_DOMAIN, types: COVER_TYPES, primaryType: 'Cover', message })],
+  })
+}
+
 async function buy() {
   if (!exposure.value || !holder.value || buying.value) return
   buying.value = true
   buyError.value = ''
   try {
+    const signature = await signCover()
     await $fetch('/api/cover', {
       method: 'POST',
       body: {
@@ -131,6 +165,7 @@ async function buy() {
         payoutUsdc: exposure.value.payoutUsdc,
         holder: holder.value,
         profile: exposure.value.rationale,
+        signature,
       },
     })
     quote.value = null
@@ -138,7 +173,7 @@ async function buy() {
     alternatives.value = []
     await refreshPolicies()
   } catch (err: any) {
-    buyError.value = err?.data?.statusMessage ?? 'execution failed'
+    buyError.value = err?.data?.statusMessage ?? err?.message ?? 'execution failed'
   } finally {
     buying.value = false
   }
@@ -250,10 +285,10 @@ async function buy() {
                 :disabled="!holder || buying"
                 @click="buy"
               >
-                {{ buying ? 'Executing…' : 'Cover me' }}
+                {{ buying ? 'Sign in your wallet, then executing…' : 'Cover me' }}
               </button>
               <p v-if="buyError" class="mt-2 text-center text-xs text-red-600/70">{{ buyError }}</p>
-              <p class="mt-2 text-center text-xs text-ink/35">Position delivered to your wallet. Settled against Polymarket prices.</p>
+              <p class="mt-2 text-center text-xs text-ink/35">Your key authorizes the cover. Position delivered to your wallet, priced against Polymarket.</p>
             </div>
           </div>
 

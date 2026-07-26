@@ -3,6 +3,7 @@ import { findCoverOption } from '../utils/catalog'
 import { buildBasket } from '../utils/basket'
 import { issuePolicy } from '../utils/policies'
 import { CTF_ADDRESS, ctfAbi, forkClient, forkRpc, findHolders } from '../utils/chain'
+import { verifyCoverAuthorization } from '../utils/authorization'
 
 // Fork-mode settlement: impersonate a live holder of each leg's YES token
 // and deliver the exact clobTokenIds at the quoted size. Real prices, real
@@ -42,7 +43,7 @@ async function deliverLeg(leg: { tokenId: string; conditionId: string; shares: n
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const { optionId, threshold, payoutUsdc, holder, profile } = body ?? {}
+  const { optionId, threshold, payoutUsdc, holder, profile, signature } = body ?? {}
   if (typeof optionId !== 'string' || typeof threshold !== 'number' || typeof payoutUsdc !== 'number' || typeof holder !== 'string')
     throw createError({ statusCode: 400, statusMessage: 'optionId, threshold, payoutUsdc, holder required' })
   if (!/^0x[0-9a-fA-F]{40}$/.test(holder)) throw createError({ statusCode: 400, statusMessage: 'holder must be an address' })
@@ -51,6 +52,20 @@ export default defineEventHandler(async (event) => {
   if (!option) throw createError({ statusCode: 404, statusMessage: 'unknown cover option' })
   const basket = buildBasket(option, threshold, payoutUsdc)
   if (!basket) throw createError({ statusCode: 422, statusMessage: 'no bucket covers this threshold' })
+
+  if (typeof signature !== 'string' || !/^0x[0-9a-fA-F]+$/.test(signature))
+    throw createError({ statusCode: 401, statusMessage: 'cover authorization signature required' })
+  const authorized = await verifyCoverAuthorization(
+    {
+      market: option.question,
+      threshold: `${threshold}°${option.unit}`,
+      payout: `${payoutUsdc} USDC`,
+      premium: `${basket.premiumUsdc} USDC`,
+      holder: holder as Address,
+    },
+    signature as `0x${string}`,
+  )
+  if (!authorized) throw createError({ statusCode: 401, statusMessage: 'authorization does not match this quote' })
 
   try {
     await forkClient.getBlockNumber()
@@ -69,6 +84,7 @@ export default defineEventHandler(async (event) => {
     shares: payoutUsdc,
     premiumUsdc: basket.premiumUsdc,
     profile: typeof profile === 'string' ? profile : '',
+    authorization: signature,
   })
 
   return { policy, basket }

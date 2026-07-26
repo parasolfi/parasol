@@ -13,6 +13,7 @@ export interface PolicyRecord {
   shares: number
   premiumUsdc: number
   profile: string
+  authorization: string
   issuedAt: string
   status: 'Issued' | 'ResolvedYes' | 'ResolvedNo' | 'Paid'
   chain: { network: string; registry: string; txHash: string } | null
@@ -52,7 +53,7 @@ async function attestOnChain(p: PolicyRecord): Promise<PolicyRecord['chain']> {
       functionName: 'issue',
       args: [
         p.holder as Address,
-        keccak256(toHex(p.profile)),
+        keccak256(toHex(`${p.profile}|${p.authorization}`)),
         p.eventSlug,
         p.tokenIds.map(BigInt),
         BigInt(Math.round(p.shares * 1e6)),
