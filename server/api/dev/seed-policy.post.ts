@@ -5,6 +5,11 @@ import { issuePolicy } from '../../utils/policies'
 // 0G Storage, attestation on Galileo, and its own ENS name. Writing the store
 // directly (as the seed script used to) produced a policy with none of them.
 export default defineEventHandler(async (event) => {
+  // It issues a policy with no authorization at all, spending the server's gas
+  // on Galileo and its ENS write budget. Nitro ships every route in server/,
+  // including this one, so the guard has to be here.
+  if (!import.meta.dev) throw createError({ statusCode: 404, statusMessage: 'not found' })
+
   const body = await readBody(event)
   const { holder, eventSlug, question, tokenIds, conditionIds, shares, premiumUsdc, profile, issuedAt } = body ?? {}
   if (
@@ -30,6 +35,7 @@ export default defineEventHandler(async (event) => {
       feesUsdc: 0,
       profile: typeof profile === 'string' ? profile : '',
       authorization: 'seeded',
+      nonce: '',
       ...(typeof issuedAt === 'string' ? { issuedAt } : {}),
     },
     naming

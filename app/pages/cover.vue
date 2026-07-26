@@ -111,7 +111,7 @@ async function send() {
   draft.value = ''
   thinking.value = true
   try {
-    const res = await $fetch<{ reply: string; exposure: Exposure | null; source: 'zg-router' | 'mock'; quote: Quote | null; alternatives: Alternative[] }>(
+    const res = await $fetch<{ reply: string; exposure: Exposure | null; source: InferenceSource; quote: Quote | null; alternatives: Alternative[] }>(
       '/api/agent',
       { method: 'POST', body: { messages: messages.value } },
     )
@@ -218,25 +218,41 @@ const COVER_TYPES = {
     { name: 'payout', type: 'string' },
     { name: 'maxPremium', type: 'string' },
     { name: 'holder', type: 'address' },
+    { name: 'nonce', type: 'string' },
+    { name: 'deadline', type: 'string' },
   ],
 }
 
-async function signCover(): Promise<string> {
+// Kept under the server's window, with room for the venue-mode wallet steps
+// that run between signing and the cover being posted.
+const AUTHORIZATION_TTL_MS = 10 * 60 * 1000
+
+function freshNonce(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return `0x${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`
+}
+
+async function signCover(): Promise<{ signature: string; nonce: string; deadline: string }> {
   if (!quote.value || !exposure.value) throw new Error('no quote')
   const eth = (window as any).ethereum
   if (!eth) throw new Error('no wallet: connect one to authorize the cover')
   await ensurePolygon()
+  const nonce = freshNonce()
+  const deadline = new Date(Date.now() + AUTHORIZATION_TTL_MS).toISOString()
   const message = {
     market: quote.value.option.question,
     threshold: `${exposure.value.threshold}°${quote.value.option.unit}`,
     payout: `${exposure.value.payoutUsdc} USDC`,
     maxPremium: `${quote.value.basket.maxPremiumUsdc} USDC`,
     holder: holder.value,
+    nonce,
+    deadline,
   }
-  return await eth.request({
+  const signature = await eth.request({
     method: 'eth_signTypedData_v4',
     params: [holder.value, JSON.stringify({ domain: COVER_DOMAIN, types: COVER_TYPES, primaryType: 'Cover', message })],
   })
+  return { signature, nonce, deadline }
 }
 
 async function buy() {
@@ -245,7 +261,7 @@ async function buy() {
   buyError.value = ''
   try {
     const maxPremiumUsdc = quote.value!.basket.maxPremiumUsdc
-    const signature = await signCover()
+    const { signature, nonce, deadline } = await signCover()
 
     // Venue mode: the wallet buys the positions on Polymarket itself, before
     // the server is told anything. Parasol never holds funds and never relays
@@ -284,6 +300,8 @@ async function buy() {
         profile: exposure.value.rationale,
         signature,
         maxPremiumUsdc,
+        nonce,
+        deadline,
       },
     })
     quote.value = null
