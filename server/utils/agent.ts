@@ -36,8 +36,15 @@ function catalogDigest(options: CoverOption[]): string {
     .join('\n')
 }
 
+// City names come straight out of Polymarket event titles, so they reach this
+// unescaped: "Washington, D.C." or a stray bracket compiles to a different
+// pattern, or throws SyntaxError and takes the whole turn down.
+function mentions(text: string, city: string): boolean {
+  return new RegExp(`\\b${city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text)
+}
+
 function citiesMentioned(options: CoverOption[], text: string): string[] {
-  return [...new Set(options.map((o) => o.city))].filter((c) => new RegExp(`\\b${c}\\b`, 'i').test(text))
+  return [...new Set(options.map((o) => o.city))].filter((c) => mentions(text, c))
 }
 
 // The provider caps requests at 2000 tokens/min, so the market table is only
@@ -71,9 +78,13 @@ Keep facts null until you have all four. Repeat back their own numbers — never
 CRITICAL: if the client names a city that is NOT in the coverable list above, say plainly that you cannot cover that city yet and name it. Do NOT list alternative cities yourself — the interface shows the authoritative list. Never pretend to gather more details about an uncoverable city, and never silently switch them to another city.`
 }
 
+const CITIES_LISTED = 12
+
 function coverableCitiesLine(options: CoverOption[]): string {
   const cities = [...new Set(options.map((o) => o.city))].sort()
-  return `Coverable today: ${cities.slice(0, 12).join(', ')} — and ${cities.length - 12} more.`
+  const rest = cities.length - CITIES_LISTED
+  const listed = cities.slice(0, CITIES_LISTED).join(', ')
+  return rest > 0 ? `Coverable today: ${listed} — and ${rest} more.` : `Coverable today: ${listed}.`
 }
 
 // The model extracts facts; the engine owns market choice and threshold, so a
@@ -130,7 +141,7 @@ function mockTurn(history: ChatMessage[], options: CoverOption[]): AgentTurn {
   const alreadyProposed = history.some((m) => m.role === 'assistant' && m.content.includes('Here is the cover'))
 
   const heatOptions = options.filter((o) => o.peril === 'heat')
-  const pick = heatOptions.find((o) => new RegExp(`\\b${o.city}\\b`, 'i').test(userText)) ?? null
+  const pick = heatOptions.find((o) => mentions(userText, o.city)) ?? null
   const tempMatch = userText.match(/(?:above|over|beyond|past|reaches|au-dessus de|plus de)\s*(\d{1,3})|(\d{1,3})\s*°/i)
   const costMatch = userText.match(/[$€]\s*(\d{2,5})|(\d{2,5})\s*(?:\$|€|dollars?|euros?|usd)/i)
 
