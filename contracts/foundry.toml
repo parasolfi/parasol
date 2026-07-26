@@ -1,0 +1,9 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = []
+solc_version = "0.8.24"
+evm_version = "cancun"
+
+[rpc_endpoints]
+galileo = "https://evmrpc-testnet.0g.ai"

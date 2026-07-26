@@ -1,32 +1,69 @@
-# Parasol — front
+# Parasol — an AI broker for parametric cover
 
-Landing page for Parasol: parametric cover for any event a public data source can settle. Name the
-event and the number that would hurt, pay a premium, and get paid automatically when it happens —
-no claim, no adjuster.
+Prediction markets already price real-world risk — they just lack the insurance UX. Parasol is the
+missing broker: an agent interviews a business owner, maps their exposure onto live Polymarket
+weather markets, structures a basket of outcome positions that pays out when their pain threshold
+is crossed, and executes it **into the client's own wallet**. Premium = market-implied probability
+× payout. No claim, no adjuster, no custody.
 
-Under the hood, underwriters are liquidity providers in a Uniswap v4 pool and buying cover is a swap
-against it, so the price of protection is a market price. Deployed on Polygon.
+**The broker's intelligence runs on 0G Compute** (TEE-sealed inference through the Router), and
+every policy is attested by the agent's wallet in a `PolicyRegistry` contract on 0G Galileo.
+Your keys move your money; the agent's key moves only its attestations.
 
-This repository is the marketing front only. It does not talk to a wallet or to the contracts yet;
-the quote card runs illustrative client-side pricing.
+## How it works
+
+```
+Interview      the agent (0G Compute Router) profiles the business — city, peril,
+               pain threshold, size of a bad day
+Catalog        live Polymarket daily-temperature events (negRisk buckets), indexed
+               via Gamma + our standardized multi-venue adapters
+Quote          deterministic basket: every bucket at/beyond the threshold;
+               premium = payout × Σ ask
+Execute        positions delivered to the client wallet (fork mode: real tokenIds,
+               real prices, local settlement — see Geoblock note)
+Attest         agent writes the policy on 0G Galileo (PolicyRegistry)
+Resolve        real Polymarket resolutions flip policy status; winners are paid
+               automatically in USDC.e
+```
 
 ## Stack
 
-Nuxt 4, Tailwind CSS v4 (Vite plugin, tokens declared in `@theme`), self-hosted fonts via
-`@nuxt/fonts`. Two WebGL backgrounds — an ASCII shader rendering a sky in the hero and a mesh
-gradient lower down — both written against the raw WebGL API, with no three.js or postprocessing
-dependency.
+- **0G Compute Router** — the agent's inference (`ZG_ROUTER_API_KEY`, OpenAI-compatible endpoint)
+- **0G Chain (Galileo, 16602)** — `PolicyRegistry` attestation contract (Foundry, cancun)
+- **The Graph** — standardized prediction-market subgraphs (Polymarket + Azuro) and on-demand
+  venue adapters (Polymarket, Azuro, Kalshi) feeding the catalog
+- **Polymarket** — liquidity: daily temperature bucket markets (CLOB v2, negRisk)
+- **Nuxt 4** — front + server routes, plain WebGL landing shaders
 
-## Develop
+## Contracts
+
+| Contract | Network | Address |
+|---|---|---|
+| PolicyRegistry | 0G Galileo (16602) | [`0x504C64EBb9816AA9238404244fC8849d849B5A6e`](https://chainscan-galileo.0g.ai/address/0x504C64EBb9816AA9238404244fC8849d849B5A6e) |
+
+## Run
 
 ```bash
 pnpm install
-pnpm dev        # http://localhost:3000
-pnpm build      # nitro output in .output/
-pnpm preview
+anvil --fork-url https://polygon.drpc.org --port 8546   # fork leg
+pnpm dev                                                 # http://localhost:3000
 ```
 
-## Conventions
+`.env`: `ZG_ROUTER_API_KEY` (0G Router), `ZG_DEPLOYER_PRIVATE_KEY` + `POLICY_REGISTRY_ADDRESS`
+(Galileo attestations), `FORK_RPC_URL` (defaults to `http://127.0.0.1:8545`).
 
-See `CLAUDE.md` for the design tokens, the shader's parameters and the gotchas worth knowing before
-touching the background or the pricing card.
+Without a Router key the interview falls back to a scripted flow, clearly labeled
+"Offline fallback" in the UI — quotes and execution still run on live market data.
+
+## Geoblock note
+
+Polymarket order placement is geo-restricted in many jurisdictions. The demo executes settlement
+on an Anvil fork of Polygon: the exact clobTokenIds at live CLOB prices, delivered by impersonating
+live holders — never a CTF split, which cannot reproduce negRisk position ids. Prices, markets and
+resolutions are all real mainnet data. Real CLOB execution is a config switch when run from an
+unrestricted jurisdiction.
+
+## Not weather insurance
+
+Weather is the demo, not the product: the mechanism covers any event a public source can settle
+and a prediction market can price. This is not a regulated insurance product.
