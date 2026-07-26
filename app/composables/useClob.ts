@@ -6,6 +6,12 @@ import { polygon } from 'viem/chains'
 
 const CLOB_HOST = 'https://clob.polymarket.com'
 
+// viem's default transport for polygon is polygon-rpc.com, which answers
+// "tenant disabled" (403) as of 2026-07-26: every balance and allowance read
+// below threw before the wallet was ever asked to sign. Same endpoint the
+// server and the add-chain payload use.
+const POLYGON_RPC = 'https://polygon-bor-rpc.publicnode.com'
+
 // NegRiskCtfExchangeV2.getCollateral() returns pUSD, read on-chain — the
 // exchange settles in pUSD only, so USDC.e has to be wrapped before it can back
 // an order. Verified against docs.polymarket.com/resources/contracts.
@@ -109,7 +115,7 @@ export function useClob() {
     if (!account) throw new Error('connect a wallet first')
 
     const amount = BigInt(Math.ceil(amountUsdc * 1e6))
-    const reader = createPublicClient({ chain: polygon, transport: http() })
+    const reader = createPublicClient({ chain: polygon, transport: http(POLYGON_RPC) })
     const wallet = createWalletClient({ account, chain: polygon, transport: custom(provider()) })
     const done: OnboardingStep[] = []
 
@@ -219,16 +225,6 @@ export function useClob() {
     return executions
   }
 
-  async function orderStatus(orderId: string) {
-    if (!client) throw new Error('CLOB client unavailable')
-    return client.getOrder(orderId)
-  }
-
-  async function cancel(orderIds: string[]) {
-    if (!client) throw new Error('CLOB client unavailable')
-    return client.cancelOrders(orderIds)
-  }
-
   return {
     address: readonly(address),
     authenticated: readonly(authenticated),
@@ -236,7 +232,5 @@ export function useClob() {
     ensureCollateral,
     authenticate,
     executeBasket,
-    orderStatus,
-    cancel,
   }
 }
