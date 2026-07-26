@@ -75,17 +75,20 @@ export default defineEventHandler(async (event) => {
 
   for (const leg of basket.legs) await deliverLeg(leg, holder as Address)
 
-  const policy = await issuePolicy({
-    holder,
-    eventSlug: option.id,
-    question: option.question,
-    tokenIds: basket.legs.map((l) => l.tokenId),
-    conditionIds: basket.legs.map((l) => l.conditionId),
-    shares: payoutUsdc,
-    premiumUsdc: basket.premiumUsdc,
-    profile: typeof profile === 'string' ? profile : '',
-    authorization: signature,
-  })
+  const policy = await issuePolicy(
+    {
+      holder,
+      eventSlug: option.id,
+      question: option.question,
+      tokenIds: basket.legs.map((l) => l.tokenId),
+      conditionIds: basket.legs.map((l) => l.conditionId),
+      shares: payoutUsdc,
+      premiumUsdc: basket.premiumUsdc,
+      profile: typeof profile === 'string' ? profile : '',
+      authorization: signature,
+    },
+    { city: option.city, peril: option.peril, date: option.date },
+  )
 
   return { policy, basket }
 })
