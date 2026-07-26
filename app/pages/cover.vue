@@ -33,6 +33,8 @@ interface Policy {
   storage: { rootHash: string; txHash: string } | null
   holderName: string | null
   ensName: string | null
+  ensPublished: boolean
+  ensParent: string
 }
 
 interface Alternative {
@@ -373,7 +375,17 @@ async function buy() {
                   Pays ${{ p.shares }} · premium ${{ p.premiumUsdc }}
                   <span v-if="p.holderName"> · {{ p.holderName }}</span>
                 </p>
-                <p v-if="p.ensName" class="text-xs text-ocean/70">{{ p.ensName }}</p>
+                <a
+                  v-if="p.ensPublished"
+                  :href="`https://sepolia.app.ens.domains/${p.ensParent}`"
+                  target="_blank"
+                  rel="noopener"
+                  class="text-xs text-teal hover:underline"
+                  >On ENS: {{ p.ensParent }} · policy {{ p.id }} ↗</a
+                >
+                <p v-else-if="p.ensName" class="text-xs text-ink/35" :title="`Reserved name — publish records to make it resolve`">
+                  {{ p.ensName }} (reserved)
+                </p>
                 <div class="mt-1 flex flex-wrap gap-3">
                   <a
                     v-if="p.chain"
