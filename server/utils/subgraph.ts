@@ -1,10 +1,10 @@
-// The Studio subgraph is slugged "freefi". The fallback below is a guess at the
-// query URL: Studio mints its own numeric id per subgraph, so set
-// POLYMARKET_SUBGRAPH_URL to the URL the deploy prints — otherwise every lookup
-// misses and the watcher silently falls back to the venue API.
+// Studio deployment, slug "freefi", account id 107915. version/latest rather
+// than a pinned version so a redeploy does not need an env change.
+// POLYMARKET_SUBGRAPH_URL still overrides it — point that at a fork of this
+// subgraph rather than editing the default.
 const POLYMARKET_SUBGRAPH =
   process.env.POLYMARKET_SUBGRAPH_URL ??
-  'https://api.studio.thegraph.com/query/1756988/freefi/version/latest'
+  'https://api.studio.thegraph.com/query/107915/freefi/version/latest'
 
 export interface IndexedResolution {
   winningOutcomeIndex: number
