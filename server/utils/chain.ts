@@ -38,7 +38,9 @@ export interface TokenHolder {
 // impersonates one instead of splitting (negRisk position ids cannot be
 // reproduced with a raw CTF split, see SPEC.md §10).
 export async function findHolders(conditionId: string, tokenId: string): Promise<TokenHolder[]> {
-  const res = await fetch(`https://data-api.polymarket.com/holders?market=${conditionId}&limit=20`)
+  // 20 was not enough depth on the thin tail buckets: a 1000-share leg can
+  // exhaust the top holders and abort the cover on an otherwise fresh fork.
+  const res = await fetch(`https://data-api.polymarket.com/holders?market=${conditionId}&limit=100`)
   if (!res.ok) return []
   const data = await res.json()
   const entry = (Array.isArray(data) ? data : []).find((t: any) => t.token === tokenId)
