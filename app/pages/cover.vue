@@ -10,6 +10,8 @@ interface Quote {
     legs: { tokenId: string; label: string; ask: number; shares: number }[]
     payoutUsdc: number
     premiumUsdc: number
+    feesUsdc: number
+    maxPremiumUsdc: number
     impliedProbability: number
     signatureCount: number
   }
@@ -126,7 +128,9 @@ const POLYGON = {
   chainId: '0x89',
   chainName: 'Polygon',
   nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-  rpcUrls: ['https://polygon-rpc.com'],
+  // polygon-rpc.com returns "tenant disabled" (403) as of 2026-07-26, so a
+  // wallet that has to add Polygon would land on a dead endpoint.
+  rpcUrls: ['https://polygon-bor-rpc.publicnode.com'],
   blockExplorerUrls: ['https://polygonscan.com'],
 }
 
@@ -207,7 +211,7 @@ const COVER_TYPES = {
     { name: 'market', type: 'string' },
     { name: 'threshold', type: 'string' },
     { name: 'payout', type: 'string' },
-    { name: 'premium', type: 'string' },
+    { name: 'maxPremium', type: 'string' },
     { name: 'holder', type: 'address' },
   ],
 }
@@ -221,7 +225,7 @@ async function signCover(): Promise<string> {
     market: quote.value.option.question,
     threshold: `${exposure.value.threshold}°${quote.value.option.unit}`,
     payout: `${exposure.value.payoutUsdc} USDC`,
-    premium: `${quote.value.basket.premiumUsdc} USDC`,
+    maxPremium: `${quote.value.basket.maxPremiumUsdc} USDC`,
     holder: holder.value,
   }
   return await eth.request({
@@ -235,6 +239,7 @@ async function buy() {
   buying.value = true
   buyError.value = ''
   try {
+    const maxPremiumUsdc = quote.value!.basket.maxPremiumUsdc
     const signature = await signCover()
     await $fetch('/api/cover', {
       method: 'POST',
@@ -245,6 +250,7 @@ async function buy() {
         holder: holder.value,
         profile: exposure.value.rationale,
         signature,
+        maxPremiumUsdc,
       },
     })
     quote.value = null
@@ -260,12 +266,9 @@ async function buy() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-canvas">
-    <AppHeader />
-
+  <div class="min-h-screen">
     <main class="mx-auto max-w-6xl px-6 pb-24 pt-28">
-      <p class="text-xs uppercase tracking-[0.18em] text-teal">Parasol broker</p>
-      <h1 class="mt-2 font-display text-4xl text-ink sm:text-5xl">Tell us what a bad day looks like.</h1>
+      <h1 class="font-display text-4xl text-ink sm:text-5xl">Tell us what a bad day looks like.</h1>
       <p class="mt-3 max-w-xl text-ink/55">
         The broker interviews you, finds the market that already prices your risk, and structures the cover.
         Your wallet holds the position — we never touch your money.
@@ -341,6 +344,8 @@ async function buy() {
             <dl class="mt-5 space-y-2 text-sm">
               <div class="flex justify-between"><dt class="text-ink/45">Pays out</dt><dd class="text-ink">${{ quote.basket.payoutUsdc }}</dd></div>
               <div class="flex justify-between"><dt class="text-ink/45">Premium</dt><dd class="font-display text-2xl text-ocean">${{ quote.basket.premiumUsdc }}</dd></div>
+              <div class="flex justify-between"><dt class="text-ink/45">Taker fees</dt><dd class="text-ink">${{ quote.basket.feesUsdc }}</dd></div>
+              <div class="flex justify-between"><dt class="text-ink/45">You authorize up to</dt><dd class="text-ink">${{ quote.basket.maxPremiumUsdc }}</dd></div>
               <div class="flex justify-between"><dt class="text-ink/45">Market odds</dt><dd class="text-ink">{{ (quote.basket.impliedProbability * 100).toFixed(1) }}%</dd></div>
               <div class="flex justify-between"><dt class="text-ink/45">Positions</dt><dd class="text-ink">{{ quote.basket.signatureCount }} market{{ quote.basket.signatureCount > 1 ? 's' : '' }}</dd></div>
             </dl>
@@ -449,7 +454,5 @@ async function buy() {
         </section>
       </div>
     </main>
-
-    <AppFooter />
   </div>
 </template>

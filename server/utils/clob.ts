@@ -52,6 +52,28 @@ export function estimateFill(asks: BookLevel[], shares: number): FillEstimate | 
   }
 }
 
+export interface FeeParams {
+  rate: number
+  exponent: number
+}
+
+// /markets exposes taker_base_fee (1000): that is the value written into a
+// signed order, not a multiplier. The rate that prices the cost is fd.r on
+// /clob-markets, which is what the SDK feeds to adjustBuyAmountForFees.
+// Swapping the two is a 100x error on the premium.
+export async function getFeeParams(conditionId: string): Promise<FeeParams> {
+  const res = await fetch(`${CLOB_API}/clob-markets/${conditionId}`)
+  if (!res.ok) return { rate: 0, exponent: 1 }
+  const data = await res.json()
+  return { rate: Number(data?.fd?.r) || 0, exponent: Number(data?.fd?.e) || 1 }
+}
+
+// Polymarket's taker fee, mirroring adjustBuyAmountForFees in clob-client-v2:
+// it peaks mid-book and vanishes at the extremes.
+export function takerFee(shares: number, price: number, fee: FeeParams): number {
+  return shares * fee.rate * (price * (1 - price)) ** fee.exponent
+}
+
 export async function getMarketRules(conditionId: string): Promise<MarketRules | null> {
   const res = await fetch(`${CLOB_API}/markets/${conditionId}`)
   if (!res.ok) return null

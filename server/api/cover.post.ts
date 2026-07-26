@@ -1,6 +1,6 @@
 import { encodeFunctionData, type Address } from 'viem'
 import { findCoverOption } from '../utils/catalog'
-import { buildBasket } from '../utils/basket'
+import { buildBasket, priceBasketFromBook } from '../utils/basket'
 import { issuePolicy } from '../utils/policies'
 import { CTF_ADDRESS, ctfAbi, forkClient, forkRpc, findHolders } from '../utils/chain'
 import { verifyCoverAuthorization } from '../utils/authorization'
@@ -43,15 +43,21 @@ async function deliverLeg(leg: { tokenId: string; conditionId: string; shares: n
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const { optionId, threshold, payoutUsdc, holder, profile, signature } = body ?? {}
+  const { optionId, threshold, payoutUsdc, holder, profile, signature, maxPremiumUsdc } = body ?? {}
   if (typeof optionId !== 'string' || typeof threshold !== 'number' || typeof payoutUsdc !== 'number' || typeof holder !== 'string')
     throw createError({ statusCode: 400, statusMessage: 'optionId, threshold, payoutUsdc, holder required' })
   if (!/^0x[0-9a-fA-F]{40}$/.test(holder)) throw createError({ statusCode: 400, statusMessage: 'holder must be an address' })
+  if (typeof maxPremiumUsdc !== 'number' || !(maxPremiumUsdc > 0))
+    throw createError({ statusCode: 400, statusMessage: 'maxPremiumUsdc required' })
 
   const option = await findCoverOption(optionId)
   if (!option) throw createError({ statusCode: 404, statusMessage: 'unknown cover option' })
-  const basket = buildBasket(option, threshold, payoutUsdc)
-  if (!basket) throw createError({ statusCode: 422, statusMessage: 'no bucket covers this threshold' })
+  const snapshot = buildBasket(option, threshold, payoutUsdc)
+  if (!snapshot) throw createError({ statusCode: 422, statusMessage: 'no bucket covers this threshold' })
+
+  // Quote and cover must price the same way. buildBasket alone is a top-of-book
+  // snapshot, which is not what the client was shown or signed against.
+  const basket = await priceBasketFromBook(snapshot)
 
   if (typeof signature !== 'string' || !/^0x[0-9a-fA-F]+$/.test(signature))
     throw createError({ statusCode: 401, statusMessage: 'cover authorization signature required' })
@@ -60,12 +66,19 @@ export default defineEventHandler(async (event) => {
       market: option.question,
       threshold: `${threshold}°${option.unit}`,
       payout: `${payoutUsdc} USDC`,
-      premium: `${basket.premiumUsdc} USDC`,
+      maxPremium: `${maxPremiumUsdc} USDC`,
       holder: holder as Address,
     },
     signature as `0x${string}`,
   )
-  if (!authorized) throw createError({ statusCode: 401, statusMessage: 'authorization does not match this quote' })
+  if (!authorized) throw createError({ statusCode: 401, statusMessage: 'authorization does not match this cover' })
+
+  const total = Math.round((basket.premiumUsdc + basket.feesUsdc) * 100) / 100
+  if (total > maxPremiumUsdc)
+    throw createError({
+      statusCode: 409,
+      statusMessage: `book moved: ${total} USDC exceeds the authorized ${maxPremiumUsdc} USDC`,
+    })
 
   try {
     await forkClient.getBlockNumber()
@@ -84,6 +97,7 @@ export default defineEventHandler(async (event) => {
       conditionIds: basket.legs.map((l) => l.conditionId),
       shares: payoutUsdc,
       premiumUsdc: basket.premiumUsdc,
+      feesUsdc: basket.feesUsdc,
       profile: typeof profile === 'string' ? profile : '',
       authorization: signature,
     },

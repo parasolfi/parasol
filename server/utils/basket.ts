@@ -1,5 +1,11 @@
 import type { CoverBucket, CoverOption } from './catalog'
-import { getBook, estimateFill } from './clob'
+import { getBook, estimateFill, getFeeParams, takerFee } from './clob'
+
+// The client signs a ceiling, not the exact premium: an exact figure is stale
+// before the wallet returns a signature. Measured on the Madrid buckets, the
+// repriced total swings ~1% within 90s and more across the minutes it takes to
+// read a quote and confirm in MetaMask, so 2% rejects honest covers.
+export const QUOTE_SLIPPAGE = 0.05
 
 export interface BasketLeg {
   tokenId: string
@@ -15,6 +21,8 @@ export interface Basket {
   legs: BasketLeg[]
   payoutUsdc: number
   premiumUsdc: number
+  feesUsdc: number
+  maxPremiumUsdc: number
   impliedProbability: number
   signatureCount: number
   pricedFrom: 'book' | 'snapshot'
@@ -46,6 +54,8 @@ export function buildBasket(option: CoverOption, threshold: number, payoutUsdc: 
     })),
     payoutUsdc,
     premiumUsdc: round2(payoutUsdc * impliedProbability),
+    feesUsdc: 0,
+    maxPremiumUsdc: round2(payoutUsdc * impliedProbability),
     impliedProbability: Math.min(1, round4(impliedProbability)),
     signatureCount: legs.length,
     pricedFrom: 'snapshot',
@@ -53,21 +63,32 @@ export function buildBasket(option: CoverOption, threshold: number, payoutUsdc: 
 }
 
 // Reprices a basket against live book depth: the premium a real order would
-// pay, not the top-of-book snapshot, plus the limit price each leg needs.
+// pay, not the top-of-book snapshot, plus the limit price each leg needs and
+// the taker fee, which the snapshot ignores entirely.
 export async function priceBasketFromBook(basket: Basket): Promise<Basket> {
   const priced = await Promise.all(
     basket.legs.map(async (leg) => {
-      const fill = estimateFill(await getBook(leg.tokenId), leg.shares)
-      if (!fill) return leg
-      return { ...leg, ask: round4(fill.averagePrice), limitPrice: round4(fill.worstPrice), depthShort: fill.depthShort }
+      const [book, fee] = await Promise.all([getBook(leg.tokenId), getFeeParams(leg.conditionId)])
+      const fill = estimateFill(book, leg.shares)
+      if (!fill) return { leg, fee: 0 }
+      return {
+        leg: { ...leg, ask: round4(fill.averagePrice), limitPrice: round4(fill.worstPrice), depthShort: fill.depthShort },
+        fee: takerFee(fill.filledShares, fill.averagePrice, fee),
+      }
     }),
   )
-  if (priced.every((l, i) => l.ask === basket.legs[i]!.ask && l.limitPrice === undefined)) return basket
-  const impliedProbability = priced.reduce((s, l) => s + l.ask, 0)
+
+  const legs = priced.map((p) => p.leg)
+  const impliedProbability = legs.reduce((s, l) => s + l.ask, 0)
+  const premiumUsdc = round2(basket.payoutUsdc * impliedProbability)
+  const feesUsdc = round2(priced.reduce((s, p) => s + p.fee, 0))
+
   return {
     ...basket,
-    legs: priced,
-    premiumUsdc: round2(basket.payoutUsdc * impliedProbability),
+    legs,
+    premiumUsdc,
+    feesUsdc,
+    maxPremiumUsdc: round2((premiumUsdc + feesUsdc) * (1 + QUOTE_SLIPPAGE)),
     impliedProbability: Math.min(1, round4(impliedProbability)),
     pricedFrom: 'book',
   }
