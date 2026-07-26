@@ -38,6 +38,8 @@ Resolve        our Polymarket subgraph on The Graph (on-chain payout report) fli
 - **0G Chain (Galileo, 16602)** — `PolicyRegistry` attestation contract (Foundry, cancun)
 - **The Graph** — standardized prediction-market subgraphs (Polymarket + Azuro) and on-demand
   venue adapters (Polymarket, Azuro, Kalshi) feeding the catalog
+- **ENS** — `freefi.eth` (Sepolia, ENSv2) is the broker's identity, clients identify by name, and
+  every policy is itself a resolvable name
 - **Polymarket** — liquidity: daily temperature bucket markets (CLOB v2, negRisk)
 - **Nuxt 4** — front + server routes, plain WebGL landing shaders
 
@@ -46,6 +48,18 @@ Resolve        our Polymarket subgraph on The Graph (on-chain payout report) fli
 | Contract | Network | Address |
 |---|---|---|
 | PolicyRegistry | 0G Galileo (16602) | [`0x504C64EBb9816AA9238404244fC8849d849B5A6e`](https://chainscan-galileo.0g.ai/address/0x504C64EBb9816AA9238404244fC8849d849B5A6e) |
+
+## Names
+
+`freefi.eth` is the broker; each policy gets a name under it, carrying its own records —
+`parasol.payout`, `parasol.status`, `parasol.attestation` (its 0G Galileo tx) and `parasol.profile`
+(`0g://<root>` of the encrypted profile). Example:
+[`madrid-heat-0725-0.freefi.eth`](https://sepolia.app.ens.domains/madrid-heat-0725-0.freefi.eth).
+
+Its resolver is an ENSv2 `PermissionedResolver` advertising `extendedResolver` (ENSIP-10), so records
+written on a policy's node resolve without the subname existing in any registry — no subname minting
+and no ownership transfer. The server's signer owns `freefi.eth`, so policies publish themselves as
+they are issued.
 
 ## Run
 
