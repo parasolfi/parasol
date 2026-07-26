@@ -84,6 +84,9 @@ async function normalizeHolder(input: string) {
   }
 }
 const { data: policiesData, refresh: refreshPolicies } = useFetch<{ policies: Policy[] }>('/api/policies')
+const { data: brokerData } = useFetch<{ broker: { name: string; address: string; policiesPublished: number } | null }>(
+  '/api/ens/broker',
+)
 
 const statusLabel: Record<string, string> = {
   Issued: 'Active',
@@ -239,6 +242,17 @@ async function buy() {
       <p class="mt-3 max-w-xl text-ink/55">
         The broker interviews you, finds the market that already prices your risk, and structures the cover.
         Your wallet holds the position — we never touch your money.
+      </p>
+      <p v-if="brokerData?.broker" class="mt-2 text-xs text-ink/40">
+        Brokered by
+        <a
+          :href="`https://sepolia.app.ens.domains/${brokerData.broker.name}`"
+          target="_blank"
+          rel="noopener"
+          class="text-teal hover:underline"
+          >{{ brokerData.broker.name }}</a
+        >
+        <span v-if="brokerData.broker.policiesPublished"> · {{ brokerData.broker.policiesPublished }} policies on ENS</span>
       </p>
 
       <div class="mt-10 grid gap-6 lg:grid-cols-[1.2fr_1fr]">

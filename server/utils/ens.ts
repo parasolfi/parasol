@@ -132,17 +132,34 @@ export async function publishPolicyName(
   }
 }
 
+const SEPOLIA_UNIVERSAL_RESOLVER: Address = '0xeeeeeeee14d718c2b47d9923deab1335e144eeee'
+
+// ENSv2 names are not in the legacy registry, so records resolve through the
+// UniversalResolver instead of looking the resolver up directly.
 export async function readPolicyRecord(name: string, key: string): Promise<string | null> {
   try {
-    const node = namehash(name)
-    const resolver = await policyClient.readContract({
-      address: ENS_REGISTRY,
-      abi: registryAbi,
-      functionName: 'resolver',
-      args: [node],
+    const value = await policyClient.getEnsText({ name, key, universalResolverAddress: SEPOLIA_UNIVERSAL_RESOLVER })
+    return value && value.length > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+export interface BrokerIdentity {
+  name: string
+  address: Address | null
+  policiesPublished: number
+}
+
+export async function brokerIdentity(): Promise<BrokerIdentity | null> {
+  try {
+    const address = await policyClient.getEnsAddress({
+      name: PARENT,
+      universalResolverAddress: SEPOLIA_UNIVERSAL_RESOLVER,
     })
-    if (resolver === '0x0000000000000000000000000000000000000000') return null
-    return await policyClient.readContract({ address: resolver, abi: resolverAbi, functionName: 'text', args: [node, key] })
+    if (!address) return null
+    const published = await readPolicyRecord(PARENT, 'parasol.policies')
+    return { name: PARENT, address, policiesPublished: Number(published ?? 0) }
   } catch {
     return null
   }
