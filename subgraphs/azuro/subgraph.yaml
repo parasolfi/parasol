@@ -1,0 +1,55 @@
+specVersion: 0.0.7
+description: Parasol — standardized prediction-market index (Azuro venue)
+repository: https://github.com/parasolfi/parasol
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: LiveCore
+    # The address published as "ClientCore" on Azuro's own deployment-addresses
+    # page turned out to actually be a LiveCore contract (live/in-play betting),
+    # not the pre-match Core its docs implied — confirmed by pulling 382 real
+    # logs from this address and matching their topic0 hashes against every
+    # ABI in Azuro's own public-config repo. All 4 distinct topics seen on this
+    # address are now accounted for: ConditionCreated, ConditionUpdated
+    # (unwired — its "newOutcomes" field fires once per condition at creation
+    # time, not a live feed; see mapping.ts), ConditionSettled, and NewLiveBet
+    # (wired up — its per-bet `odds` field IS the live price feed, and
+    # `amount` is real per-bet volume; both confirmed by decoding a live log).
+    # The first hash-matching pass missed ConditionSettled
+    # because it wasn't expanding tuple[] component types before hashing —
+    # graph-node/Solidity compute event topics from the fully expanded
+    # signature (e.g. "(uint128,uint8)[]"), not the bare ABI "tuple[]" string.
+    # Docs pages for fast-moving protocols lag deployed bytecode — verify
+    # against real logs, not the docs page, before trusting an address+ABI
+    # pairing, and expand tuple components before hashing anything.
+    network: matic
+    source:
+      address: "0xF9548Be470A4e130c90ceA8b179FCD66D2972AC7"
+      abi: LiveCore
+      # ~8 days back from chain head (~90,878,456 as of 2026-07-26). Widened
+      # further than Polymarket's window specifically because this one keeps
+      # converging fast (single data source, no NegRisk-style backfill need) —
+      # more real history to browse/search at no real cost in convergence time.
+      startBlock: 90533000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Market
+        - Outcome
+        - Resolution
+        - AzuroOutcomeLookup
+        - PricePoint
+      abis:
+        - name: LiveCore
+          file: ./abis/LiveCore.json
+      eventHandlers:
+        - event: ConditionCreated(indexed uint256,indexed uint256,uint128[],uint64[],uint8)
+          handler: handleConditionCreated
+        - event: ConditionSettled(indexed uint256,uint8,(uint128,uint8)[],int128,uint64)
+          handler: handleConditionSettled
+        - event: NewLiveBet(indexed uint256,indexed address,indexed address,uint8,uint256,uint128,(uint256,uint256,uint8,uint128,uint64)[],uint128)
+          handler: handleNewLiveBet
+      file: ./src/mapping.ts
