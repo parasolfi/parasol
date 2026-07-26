@@ -64,10 +64,17 @@ contract PolicyRegistry {
         emit PolicyIssued(id, holder, eventSlug, profileHash);
     }
 
+    /// Issued settles either way; only a policy that won can then be paid.
+    /// Ordering the enum alone let ResolvedNo reach Paid and ResolvedYes fall
+    /// back to ResolvedNo, both of which pay or void the wrong cover.
     function setStatus(uint256 id, Status s) external onlyAgent {
         Policy storage p = policies[id];
         if (p.issuedAt == 0) revert UnknownPolicy();
-        if (s == Status.Issued || uint8(s) <= uint8(p.status)) revert BadTransition();
+
+        bool allowed = (p.status == Status.Issued && (s == Status.ResolvedYes || s == Status.ResolvedNo))
+            || (p.status == Status.ResolvedYes && s == Status.Paid);
+        if (!allowed) revert BadTransition();
+
         p.status = s;
         emit PolicyStatus(id, s);
     }

@@ -32,9 +32,30 @@ contract PolicyRegistryTest {
 
     function test_cannotRegressStatus() public {
         uint256 id = reg.issue(address(0xBEEF), bytes32(0), "x", tokenIds, 1, 1);
+        reg.setStatus(id, PolicyRegistry.Status.ResolvedYes);
         reg.setStatus(id, PolicyRegistry.Status.Paid);
         (bool ok,) = address(reg).call(abi.encodeCall(reg.setStatus, (id, PolicyRegistry.Status.ResolvedNo)));
         require(!ok, "regression must revert");
+    }
+
+    function test_lostCoverCannotBePaid() public {
+        uint256 id = reg.issue(address(0xBEEF), bytes32(0), "x", tokenIds, 1, 1);
+        reg.setStatus(id, PolicyRegistry.Status.ResolvedNo);
+        (bool ok,) = address(reg).call(abi.encodeCall(reg.setStatus, (id, PolicyRegistry.Status.Paid)));
+        require(!ok, "ResolvedNo must not reach Paid");
+    }
+
+    function test_wonCoverCannotBeVoided() public {
+        uint256 id = reg.issue(address(0xBEEF), bytes32(0), "x", tokenIds, 1, 1);
+        reg.setStatus(id, PolicyRegistry.Status.ResolvedYes);
+        (bool ok,) = address(reg).call(abi.encodeCall(reg.setStatus, (id, PolicyRegistry.Status.ResolvedNo)));
+        require(!ok, "ResolvedYes must not fall back to ResolvedNo");
+    }
+
+    function test_paymentRequiresResolvedYes() public {
+        uint256 id = reg.issue(address(0xBEEF), bytes32(0), "x", tokenIds, 1, 1);
+        (bool ok,) = address(reg).call(abi.encodeCall(reg.setStatus, (id, PolicyRegistry.Status.Paid)));
+        require(!ok, "Issued must not jump straight to Paid");
     }
 
     function test_nonAgentCannotIssue() public {
