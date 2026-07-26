@@ -1,6 +1,6 @@
 import { encodeFunctionData, type Address } from 'viem'
 import { findCoverOption } from '../utils/catalog'
-import { buildBasket, priceBasketFromBook } from '../utils/basket'
+import { basketTotal, buildBasket, priceBasketFromBook } from '../utils/basket'
 import { issuePolicy } from '../utils/policies'
 import { CTF_ADDRESS, ctfAbi, forkClient, forkRpc, findHolders, polygonClient, EXECUTION_MODE, FORK_RPC } from '../utils/chain'
 import { verifyCoverAuthorization } from '../utils/authorization'
@@ -137,7 +137,16 @@ export default defineEventHandler(async (event) => {
   )
   if (!authorized) throw createError({ statusCode: 401, statusMessage: 'authorization does not match this cover' })
 
-  const total = Math.round((basket.premiumUsdc + basket.feesUsdc) * 100) / 100
+  const total = basketTotal(basket)
+
+  // Same guard as /api/quote, repeated here because the quote can be bypassed
+  // by posting straight to this endpoint.
+  if (total >= payoutUsdc)
+    throw createError({
+      statusCode: 422,
+      statusMessage: `${total} USDC to cover ${payoutUsdc} USDC: this cover cannot pay for itself`,
+    })
+
   if (total > maxPremiumUsdc)
     throw createError({
       statusCode: 409,
