@@ -2,19 +2,41 @@
 
 Canonical, cross-venue schema for prediction markets (`Market` / `Outcome` /
 `Resolution`), implemented per-venue as separate Subgraph Studio deployments
-that share an identical `schema.graphql`. `subgraphs/common/schema.graphql` is
-the source of truth — copy it verbatim into each venue folder when it changes.
+that share an identical common surface. `subgraphs/common/schema.graphql` is
+the source of truth.
 
 ## Layout
 
 ```
 subgraphs/
-  common/schema.graphql   <- canonical schema, copy into each venue below
-  polymarket/             <- venue 1, built and building
+  check-schema.mjs        <- proves every venue carries the common surface
+  common/schema.graphql   <- canonical schema
+  polymarket/             <- venue 1, deployed (Studio slug "freefi")
+  azuro/                  <- venue 2, built and tested, not deployed
   omen/                   <- not started (CTF-native, same pattern as polymarket)
   seer/                   <- not started (CTF-native, same pattern as polymarket)
-  azuro/                  <- not started (different model — odds, not CTF)
 ```
+
+## The rule, and how it is enforced
+
+The schema splits in two at the `venue-specific plumbing` marker:
+
+- **Above it** — `Market`, `Outcome`, `PricePoint`, `Resolution` — is the
+  standardized surface. Every venue carries it byte-for-byte. No venue may
+  drop or reshape it.
+- **Below it** is per-venue and optional. Polymarket keeps `TokenToOutcome`
+  (ERC-1155 position ids); Azuro carries `AzuroOutcomeLookup` instead, having
+  no position ids to map.
+
+Drift above the marker is silent otherwise: a venue renames a field, consumers
+written against the standard break on that venue alone, and nothing fails until
+someone queries it. So it is checked rather than trusted:
+
+```bash
+node subgraphs/check-schema.mjs
+```
+
+Exits non-zero on drift, naming the venue. Run it after touching any schema.
 
 ## Polymarket (venue 1)
 
