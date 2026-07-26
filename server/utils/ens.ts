@@ -165,12 +165,22 @@ export async function brokerIdentity(): Promise<BrokerIdentity | null> {
   }
 }
 
+// Clients may hold their name on either network — testnet names resolve
+// through the UniversalResolver, mainnet through the legacy path.
 export async function resolveOwner(name: string): Promise<Address | null> {
-  try {
-    return await identityClient.getEnsAddress({ name })
-  } catch {
-    return null
+  const attempts = [
+    () => policyClient.getEnsAddress({ name, universalResolverAddress: SEPOLIA_UNIVERSAL_RESOLVER }),
+    () => identityClient.getEnsAddress({ name }),
+  ]
+  for (const attempt of attempts) {
+    try {
+      const address = await attempt()
+      if (address) return address
+    } catch {
+      continue
+    }
   }
+  return null
 }
 
 const nameCache = new Map<string, string | null>()
@@ -178,11 +188,18 @@ const nameCache = new Map<string, string | null>()
 export async function reverseName(address: Address): Promise<string | null> {
   const key = address.toLowerCase()
   if (nameCache.has(key)) return nameCache.get(key) ?? null
+  const attempts = [
+    () => policyClient.getEnsName({ address, universalResolverAddress: SEPOLIA_UNIVERSAL_RESOLVER }),
+    () => identityClient.getEnsName({ address }),
+  ]
   let name: string | null = null
-  try {
-    name = await identityClient.getEnsName({ address })
-  } catch {
-    name = null
+  for (const attempt of attempts) {
+    try {
+      name = await attempt()
+      if (name) break
+    } catch {
+      continue
+    }
   }
   nameCache.set(key, name)
   return name
