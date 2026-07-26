@@ -73,14 +73,14 @@ async function attestOnChain(p: PolicyRecord): Promise<PolicyRecord['chain']> {
 }
 
 export async function issuePolicy(
-  input: Omit<PolicyRecord, 'id' | 'issuedAt' | 'status' | 'chain' | 'storage' | 'ens'>,
+  input: Omit<PolicyRecord, 'id' | 'issuedAt' | 'status' | 'chain' | 'storage' | 'ens'> & { issuedAt?: string },
   naming?: { city: string; peril: string; date: string },
 ): Promise<PolicyRecord> {
   const records = load()
   const record: PolicyRecord = {
     ...input,
     id: records.length,
-    issuedAt: new Date().toISOString(),
+    issuedAt: input.issuedAt ?? new Date().toISOString(),
     status: 'Issued',
     chain: null,
     storage: null,
