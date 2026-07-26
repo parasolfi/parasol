@@ -11,8 +11,8 @@ try {
   const ledger = await broker.ledger.getLedger()
   console.log('ledger existant, balance:', ledger.totalBalance?.toString?.() ?? JSON.stringify(ledger))
 } catch {
-  console.log('creation ledger + depot 0.02 OG...')
-  await broker.ledger.addLedger(0.02)
+  console.log('creation ledger + depot 3 OG (minimum requis)...')
+  await broker.ledger.addLedger(3)
   console.log('ledger cree')
 }
 

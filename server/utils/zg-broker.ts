@@ -18,7 +18,7 @@ let unavailable = false
 async function getSession(): Promise<BrokerSession | null> {
   if (session) return session
   if (unavailable) return null
-  const key = process.env.ZG_DEPLOYER_PRIVATE_KEY
+  const key = process.env.ZG_COMPUTE_PRIVATE_KEY ?? process.env.ZG_DEPLOYER_PRIVATE_KEY
   if (!key) return null
   try {
     const wallet = new ethers.Wallet(key, new ethers.JsonRpcProvider(GALILEO_RPC))

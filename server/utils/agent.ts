@@ -9,10 +9,12 @@ export interface Exposure {
   rationale: string
 }
 
+export type InferenceSource = 'zg-router' | 'zg-compute' | 'mock'
+
 export interface AgentTurn {
   reply: string
   exposure: Exposure | null
-  source: 'zg-router' | 'mock'
+  source: InferenceSource
 }
 
 interface ChatMessage {
@@ -23,6 +25,8 @@ interface ChatMessage {
 const ROUTER_URL = process.env.ZG_ROUTER_URL ?? 'https://router-api.0g.ai/v1'
 const MODEL = process.env.ZG_MODEL ?? '0gm-1.0-35b-a3b'
 
+// Only the cities the client actually mentioned reach the prompt: the full
+// catalog runs ~100 lines and the model starts picking unrelated cities.
 function catalogDigest(options: CoverOption[]): string {
   return options
     .map((o) => {
@@ -32,21 +36,55 @@ function catalogDigest(options: CoverOption[]): string {
     .join('\n')
 }
 
-function systemPrompt(options: CoverOption[]): string {
-  return `You are Parasol's cover broker. You interview a business owner to understand what weather event would hurt them, then map it onto EXACTLY ONE market from the catalog below. Never invent a city, date or market not in the catalog. If nothing in the catalog covers their exposure, say so honestly and list what IS coverable.
-
-CATALOG (id | city | date | peril | bucket range | single-order threshold):
-${catalogDigest(options)}
-
-Rules:
-- Ask short questions until you know: their business, the city, whether heat or cold hurts, the temperature at which pain starts, and roughly how much money a bad day costs them.
-- Prefer thresholds at or beyond the single-order threshold when close to the client's pain point (cheaper, one signature).
-- payoutUsdc between 50 and 10000.
-- Respond ONLY with JSON, no markdown fences: {"reply": "<what you say to the client>", "exposure": null | {"optionId": "<catalog id>", "threshold": <number>, "payoutUsdc": <number>, "rationale": "<one line>"}}
-- Keep exposure null until you are confident; then fill it and summarise the cover in reply.`
+function citiesMentioned(options: CoverOption[], text: string): string[] {
+  return [...new Set(options.map((o) => o.city))].filter((c) => new RegExp(`\\b${c}\\b`, 'i').test(text))
 }
 
-function validateTurn(raw: string, options: CoverOption[]): AgentTurn | null {
+function relevantOptions(options: CoverOption[], history: ChatMessage[]): CoverOption[] {
+  const text = history.filter((m) => m.role === 'user').map((m) => m.content).join(' ')
+  const cities = citiesMentioned(options, text)
+  return cities.length > 0 ? options.filter((o) => cities.includes(o.city)) : options
+}
+
+function systemPrompt(options: CoverOption[], allCities: string[]): string {
+  return `You are Parasol's cover broker. You interview a business owner and extract four facts. You never pick markets or compute prices — the pricing engine does that from your facts.
+
+MARKETS AVAILABLE (city | date | peril | bucket range):
+${catalogDigest(options)}
+
+All coverable cities: ${allCities.join(', ')}.
+
+Ask short, warm questions until you know all four facts:
+1. city — must be one of the coverable cities above
+2. peril — "heat" if hot days hurt them, "cold" if cold days do
+3. degrees — the temperature at which their business starts losing money
+4. cost — what one such day costs them, in dollars
+
+Respond ONLY with JSON, no markdown fences:
+{"reply": "<what you say to the client>", "facts": null | {"city": "<exact city name>", "peril": "heat"|"cold", "degrees": <number>, "cost": <number>, "rationale": "<one line>"}}
+
+Keep facts null until you have all four. Repeat back their own numbers — never substitute your own. If their city is not coverable, keep facts null and say which cities are.`
+}
+
+// The model extracts facts; the engine owns market choice and threshold, so a
+// hallucinated city or a drifting threshold cannot reach the quote.
+function factsToExposure(facts: any, options: CoverOption[]): Exposure | null {
+  if (!facts || typeof facts.degrees !== 'number' || typeof facts.cost !== 'number') return null
+  const peril = facts.peril === 'cold' ? 'cold' : 'heat'
+  const candidates = options
+    .filter((o) => o.peril === peril && String(facts.city ?? '').toLowerCase() === o.city.toLowerCase())
+    .sort((a, b) => a.endDate.localeCompare(b.endDate))
+  const option = candidates[0]
+  if (!option) return null
+
+  const degs = option.buckets.filter((b) => b.thresholdDeg !== null).map((b) => b.thresholdDeg!)
+  const threshold = Math.min(Math.max(facts.degrees, Math.min(...degs)), Math.max(...degs))
+  const payoutUsdc = Math.min(Math.max(Math.round(facts.cost), 50), 10_000)
+
+  return { optionId: option.id, threshold, payoutUsdc, rationale: String(facts.rationale ?? '') }
+}
+
+function validateTurn(raw: string, options: CoverOption[], source: InferenceSource): AgentTurn | null {
   let parsed: any
   try {
     parsed = JSON.parse(raw.replace(/^```(json)?|```$/g, '').trim())
@@ -54,17 +92,11 @@ function validateTurn(raw: string, options: CoverOption[]): AgentTurn | null {
     return null
   }
   if (typeof parsed?.reply !== 'string') return null
-  if (parsed.exposure === null || parsed.exposure === undefined)
-    return { reply: parsed.reply, exposure: null, source: 'zg-router' }
-  const e = parsed.exposure
-  const option = options.find((o) => o.id === e?.optionId)
-  if (!option || typeof e.threshold !== 'number' || typeof e.payoutUsdc !== 'number') return null
-  if (e.payoutUsdc < 50 || e.payoutUsdc > 10_000) return null
-  return {
-    reply: parsed.reply,
-    exposure: { optionId: e.optionId, threshold: e.threshold, payoutUsdc: e.payoutUsdc, rationale: String(e.rationale ?? '') },
-    source: 'zg-router',
-  }
+  if (!parsed.facts) return { reply: parsed.reply, exposure: null, source }
+
+  const exposure = factsToExposure(parsed.facts, options)
+  if (!exposure) return null
+  return { reply: parsed.reply, exposure, source }
 }
 
 async function callRouter(messages: ChatMessage[], apiKey: string): Promise<string> {
@@ -147,15 +179,21 @@ function mockTurn(history: ChatMessage[], options: CoverOption[]): AgentTurn {
 // requests settled on Galileo), then the scripted interview.
 export async function runAgentTurn(history: ChatMessage[], options: CoverOption[]): Promise<AgentTurn> {
   const apiKey = process.env.ZG_ROUTER_API_KEY
-  const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt(options) }, ...history]
+  const source: InferenceSource = apiKey ? 'zg-router' : 'zg-compute'
+  const scoped = relevantOptions(options, history)
+  const allCities = [...new Set(options.map((o) => o.city))]
+  const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt(scoped, allCities) }, ...history]
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const raw = apiKey ? await callRouter(messages, apiKey) : await brokerCompletion(messages)
       if (raw === null) break
-      const turn = validateTurn(raw, options)
+      const turn = validateTurn(raw, scoped, source)
       if (turn) return turn
-      messages.push({ role: 'assistant', content: raw }, { role: 'user', content: 'Invalid: respond with the exact JSON shape only.' })
+      messages.push(
+        { role: 'assistant', content: raw },
+        { role: 'user', content: 'Invalid. Use the exact JSON shape, a coverable city, and my own numbers.' },
+      )
     } catch {
       if (attempt === 2) break
     }

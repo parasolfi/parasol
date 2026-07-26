@@ -42,7 +42,13 @@ interface Alternative {
 const messages = ref<ChatMessage[]>([])
 const draft = ref('')
 const thinking = ref(false)
-const agentSource = ref<'zg-router' | 'mock' | null>(null)
+type InferenceSource = 'zg-router' | 'zg-compute' | 'mock'
+const agentSource = ref<InferenceSource | null>(null)
+const sourceLabel: Record<InferenceSource, string> = {
+  'zg-router': 'Live on 0G Compute',
+  'zg-compute': 'Live on 0G Compute',
+  mock: 'Offline fallback',
+}
 const quote = ref<Quote | null>(null)
 const exposure = ref<Exposure | null>(null)
 const alternatives = ref<Alternative[]>([])
@@ -155,8 +161,8 @@ async function buy() {
         <section class="surface flex min-h-[28rem] flex-col rounded-3xl p-6">
           <div class="flex items-baseline justify-between">
             <h2 class="font-display text-2xl text-ink">Interview</h2>
-            <span v-if="agentSource" class="text-xs uppercase tracking-[0.18em]" :class="agentSource === 'zg-router' ? 'text-teal' : 'text-ink/35'">
-              {{ agentSource === 'zg-router' ? 'Live on 0G Compute' : 'Offline fallback' }}
+            <span v-if="agentSource" class="text-xs uppercase tracking-[0.18em]" :class="agentSource === 'mock' ? 'text-ink/35' : 'text-teal'">
+              {{ sourceLabel[agentSource] }}
             </span>
           </div>
 
