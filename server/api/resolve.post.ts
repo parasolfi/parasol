@@ -37,6 +37,11 @@ async function legOutcome(conditionId: string, tokenId: string): Promise<{ won: 
   const indexed = await getIndexedResolution(conditionId)
   if (indexed) return { won: indexed.winningOutcomeIndex === YES_OUTCOME_INDEX, via: 'subgraph' }
 
+  // Falling through is not neutral: it means the subgraph does not cover this
+  // condition. That stayed invisible for a while and left the watcher running
+  // entirely on the venue API while the subgraph looked healthy.
+  console.warn(`[resolve] subgraph has no resolution for ${conditionId} — falling back to the venue API`)
+
   const m = await getPolymarketMarket(conditionId)
   if (!m?.resolution || m.resolution.status !== 'Resolved') return null
   const yes = m.outcomes.find((o) => o.venueOutcomeId === tokenId)
@@ -54,12 +59,16 @@ export default defineEventHandler(async () => {
         p.tokenIds.map(async (tokenId, i) => {
           const conditionId = p.conditionIds?.[i]
           if (!conditionId) return null
-          const outcome = await legOutcome(conditionId, tokenId)
-          if (outcome) via = outcome.via
-          return outcome
+          return legOutcome(conditionId, tokenId)
         }),
       )
       if (buckets.some((b) => b === null)) continue
+
+      // One leg served by the venue API means the subgraph did not carry this
+      // policy, whatever the other legs did. Reporting the last leg's source
+      // would let a single indexed bucket pass the whole basket off as indexed.
+      via = buckets.every((b) => b!.via === 'subgraph') ? 'subgraph' : 'venue-api'
+
       const won = buckets.some((b) => b!.won)
       updatePolicyStatus(p.id, won ? 'ResolvedYes' : 'ResolvedNo')
       if (!won) {
