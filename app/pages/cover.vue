@@ -31,6 +31,8 @@ interface Policy {
   issuedAt: string
   chain: { network: string; registry: string; txHash: string } | null
   storage: { rootHash: string; txHash: string } | null
+  holderName: string | null
+  ensName: string | null
 }
 
 interface Alternative {
@@ -58,7 +60,29 @@ const manualEntry = ref(false)
 const buying = ref(false)
 const buyError = ref('')
 
-const shortHolder = computed(() => (holder.value ? `${holder.value.slice(0, 6)}…${holder.value.slice(-4)}` : ''))
+const holderEns = ref<string | null>(null)
+const shortHolder = computed(() =>
+  holderEns.value ? holderEns.value : holder.value ? `${holder.value.slice(0, 6)}…${holder.value.slice(-4)}` : '',
+)
+
+// Accepts an ENS name as well as an address, and shows the holder's own name
+// back to them once one reverse-resolves.
+async function normalizeHolder(input: string) {
+  const value = input.trim()
+  if (value.endsWith('.eth')) {
+    const { address } = await $fetch<{ address: string | null }>('/api/ens/resolve', { query: { name: value } })
+    if (address) {
+      holder.value = address
+      holderEns.value = value
+    }
+    return
+  }
+  if (/^0x[0-9a-fA-F]{40}$/.test(value)) {
+    holder.value = value
+    const { name } = await $fetch<{ name: string | null }>('/api/ens/resolve', { query: { address: value } })
+    holderEns.value = name
+  }
+}
 const { data: policiesData, refresh: refreshPolicies } = useFetch<{ policies: Policy[] }>('/api/policies')
 
 const statusLabel: Record<string, string> = {
@@ -122,7 +146,7 @@ async function connectWallet() {
     return
   }
   const accounts = await eth.request({ method: 'eth_requestAccounts' })
-  if (accounts?.[0]) holder.value = accounts[0]
+  if (accounts?.[0]) await normalizeHolder(accounts[0])
   await ensurePolygon()
 }
 
@@ -295,14 +319,14 @@ async function buy() {
               </div>
               <input
                 v-else-if="!holder"
-                v-model="holder"
                 type="text"
-                placeholder="0x…"
+                placeholder="0x… or yourname.eth"
                 class="w-full rounded-full border border-ink/10 bg-canvas px-4 py-2.5 text-xs text-ink placeholder:text-ink/30 focus:border-teal/60 focus:outline-none"
+                @change="normalizeHolder(($event.target as HTMLInputElement).value)"
               />
               <div v-else class="flex items-center justify-between rounded-full bg-canvas-soft px-4 py-2">
                 <span class="text-xs text-ink/70">{{ shortHolder }}</span>
-                <button type="button" class="text-xs text-ink/40 hover:text-ink/70" @click="holder = ''; manualEntry = false">change</button>
+                <button type="button" class="text-xs text-ink/40 hover:text-ink/70" @click="holder = ''; holderEns = null; manualEntry = false">change</button>
               </div>
               <button
                 type="button"
@@ -331,7 +355,11 @@ async function buy() {
                     {{ statusLabel[p.status] ?? p.status }}
                   </span>
                 </div>
-                <p class="mt-2 text-xs text-ink/45">Pays ${{ p.shares }} · premium ${{ p.premiumUsdc }}</p>
+                <p class="mt-2 text-xs text-ink/45">
+                  Pays ${{ p.shares }} · premium ${{ p.premiumUsdc }}
+                  <span v-if="p.holderName"> · {{ p.holderName }}</span>
+                </p>
+                <p v-if="p.ensName" class="text-xs text-ocean/70">{{ p.ensName }}</p>
                 <div class="mt-1 flex flex-wrap gap-3">
                   <a
                     v-if="p.chain"

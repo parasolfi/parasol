@@ -1,5 +1,5 @@
 import { getCatalog, findCoverOption } from '../utils/catalog'
-import { buildBasket } from '../utils/basket'
+import { buildBasket, priceBasketFromBook } from '../utils/basket'
 import { runAgentTurn } from '../utils/agent'
 
 export default defineEventHandler(async (event) => {
@@ -15,7 +15,8 @@ export default defineEventHandler(async (event) => {
   if (!turn.exposure) return { ...turn, quote: null, alternatives: [] }
 
   const option = await findCoverOption(turn.exposure.optionId)
-  const basket = option ? buildBasket(option, turn.exposure.threshold, turn.exposure.payoutUsdc) : null
+  const raw = option ? buildBasket(option, turn.exposure.threshold, turn.exposure.payoutUsdc) : null
+  const basket = raw ? await priceBasketFromBook(raw) : null
   const alternatives = option
     ? options
         .filter((o) => o.city === option.city && o.peril === option.peril && o.id !== option.id)

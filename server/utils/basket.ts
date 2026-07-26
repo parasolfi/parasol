@@ -1,4 +1,5 @@
 import type { CoverBucket, CoverOption } from './catalog'
+import { getBook, estimateFill } from './clob'
 
 export interface BasketLeg {
   tokenId: string
@@ -6,6 +7,8 @@ export interface BasketLeg {
   label: string
   ask: number
   shares: number
+  limitPrice?: number
+  depthShort?: boolean
 }
 
 export interface Basket {
@@ -14,6 +17,7 @@ export interface Basket {
   premiumUsdc: number
   impliedProbability: number
   signatureCount: number
+  pricedFrom: 'book' | 'snapshot'
 }
 
 // Cover pays out when the reading crosses the client's pain threshold:
@@ -44,6 +48,28 @@ export function buildBasket(option: CoverOption, threshold: number, payoutUsdc: 
     premiumUsdc: round2(payoutUsdc * impliedProbability),
     impliedProbability: Math.min(1, round4(impliedProbability)),
     signatureCount: legs.length,
+    pricedFrom: 'snapshot',
+  }
+}
+
+// Reprices a basket against live book depth: the premium a real order would
+// pay, not the top-of-book snapshot, plus the limit price each leg needs.
+export async function priceBasketFromBook(basket: Basket): Promise<Basket> {
+  const priced = await Promise.all(
+    basket.legs.map(async (leg) => {
+      const fill = estimateFill(await getBook(leg.tokenId), leg.shares)
+      if (!fill) return leg
+      return { ...leg, ask: round4(fill.averagePrice), limitPrice: round4(fill.worstPrice), depthShort: fill.depthShort }
+    }),
+  )
+  if (priced.every((l, i) => l.ask === basket.legs[i]!.ask && l.limitPrice === undefined)) return basket
+  const impliedProbability = priced.reduce((s, l) => s + l.ask, 0)
+  return {
+    ...basket,
+    legs: priced,
+    premiumUsdc: round2(basket.payoutUsdc * impliedProbability),
+    impliedProbability: Math.min(1, round4(impliedProbability)),
+    pricedFrom: 'book',
   }
 }
 
