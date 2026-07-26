@@ -9,6 +9,11 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // viem and the CTF reads use BigInt literals, unavailable under the es2019 default.
+  nitro: {
+    esbuild: { options: { target: 'es2022' } },
+  },
+
   vite: {
     plugins: [tailwindcss()],
   },
