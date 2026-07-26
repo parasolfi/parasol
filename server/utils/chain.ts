@@ -18,6 +18,18 @@ export const registryAbi = parseAbi([
 
 export const forkClient = createPublicClient({ transport: http(FORK_RPC) })
 
+// polygon-rpc.com answers "tenant disabled" (403) as of 2026-07-26.
+export const POLYGON_RPC = process.env.POLYGON_RPC_URL ?? 'https://polygon-bor-rpc.publicnode.com'
+
+// Real mainnet, not the fork: venue mode proves delivery by reading the
+// holder's ERC-1155 balance on Polygon, which needs no API credentials and so
+// keeps the client's CLOB session on the client (SPEC.md §0).
+export const polygonClient = createPublicClient({ transport: http(POLYGON_RPC) })
+
+export type ExecutionMode = 'fork' | 'venue'
+
+export const EXECUTION_MODE: ExecutionMode = process.env.EXECUTION_MODE === 'venue' ? 'venue' : 'fork'
+
 export async function forkRpc(method: string, params: unknown[]): Promise<unknown> {
   const res = await fetch(FORK_RPC, {
     method: 'POST',
