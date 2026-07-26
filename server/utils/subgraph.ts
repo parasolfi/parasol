@@ -1,6 +1,10 @@
+// The Studio subgraph is slugged "freefi". The fallback below is a guess at the
+// query URL: Studio mints its own numeric id per subgraph, so set
+// POLYMARKET_SUBGRAPH_URL to the URL the deploy prints — otherwise every lookup
+// misses and the watcher silently falls back to the venue API.
 const POLYMARKET_SUBGRAPH =
   process.env.POLYMARKET_SUBGRAPH_URL ??
-  'https://api.studio.thegraph.com/query/1756988/parasol-polymarket/version/latest'
+  'https://api.studio.thegraph.com/query/1756988/freefi/version/latest'
 
 export interface IndexedResolution {
   winningOutcomeIndex: number

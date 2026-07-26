@@ -56,11 +56,18 @@ graph auth <studio-deploy-key>
 npm run deploy
 ```
 
-Then point the server at it:
+The Studio slug is **`freefi`**, and the network to pick there is **Polygon
+(matic)** — it has to match `network: matic` in the manifest.
+
+Then point the server at the query URL the deploy prints:
 
 ```
-POLYMARKET_SUBGRAPH_URL=https://api.studio.thegraph.com/query/<id>/parasol-polymarket/<version>
+POLYMARKET_SUBGRAPH_URL=https://api.studio.thegraph.com/query/<id>/freefi/<version>
 ```
+
+Studio assigns its own numeric id, so the fallback baked into
+`server/utils/subgraph.ts` is only a guess. Without this variable every lookup
+misses and the watcher quietly falls back to the venue API.
 
 ## Checking it actually works
 
