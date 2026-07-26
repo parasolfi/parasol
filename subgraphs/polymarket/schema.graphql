@@ -5,12 +5,21 @@
 # change this file, copy it over the per-venue ones too, or the venues drift out
 # of the "standardized schema" story the Graph track is judged on.
 #
-# The rule: every type defined here must exist, identically, in every venue's
-# copy — that's the standardized surface judges/consumers query. A venue MAY
-# append its own additional internal helper entities beyond this baseline
-# (e.g. azuro/schema.graphql has one for resolving its raw outcome ids) — those
-# are implementation plumbing, not part of the common API, so they don't need
-# to be copied everywhere.
+# The rule, in two parts:
+#
+# 1. The common API — Market, Outcome, PricePoint, Resolution — must exist
+#    identically in every venue's copy. That is the standardized surface
+#    judges and consumers query, and no venue may drop or reshape it.
+#
+# 2. Everything below the "venue-specific plumbing" marker is optional. A venue
+#    keeps only what its own model needs and may add its own: Polymarket and
+#    other CTF-native venues carry TokenToOutcome, Azuro carries
+#    AzuroOutcomeLookup instead, because it has no ERC-1155 position ids to map.
+#    These are internal lookups, not part of the queryable standard.
+#
+# Earlier wording demanded that *every* type be copied verbatim while also
+# allowing venue-specific entities, which contradicted itself the moment Azuro
+# dropped TokenToOutcome. Splitting the rule in two settles it.
 
 type Market @entity(immutable: true) {
   id: ID! # "<venue>-<conditionId>" — globally unique across venues
@@ -69,6 +78,11 @@ type Resolution @entity(immutable: false) {
   winningOutcomeIndex: Int
   finalizedAt: BigInt
 }
+
+# ─── venue-specific plumbing ─────────────────────────────────────────────────
+# Everything below is per-venue and optional. Keep what your venue's model
+# needs, drop what it does not, add your own. Nothing here is part of the
+# standardized surface above.
 
 # Internal lookup: ERC1155 CTF position id -> which Market/outcome it represents.
 # Populated at market-creation time via on-chain getCollectionId/getPositionId
