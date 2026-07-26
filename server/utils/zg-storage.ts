@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto'
+import { createCipheriv, randomBytes, createHash } from 'node:crypto'
 import { ethers } from 'ethers'
 import { MemData, Indexer } from '@0gfoundation/0g-storage-ts-sdk'
 
@@ -9,7 +9,11 @@ const INDEXER_URL = process.env.ZG_INDEXER_URL ?? 'https://indexer-storage-testn
 // leaves the process. 0G Storage is content-addressed storage, not a
 // confidential environment — plaintext there would be readable by any node.
 function profileKey(): Buffer {
-  const secret = process.env.ZG_COMPUTE_PRIVATE_KEY ?? process.env.ZG_DEPLOYER_PRIVATE_KEY ?? 'parasol-dev'
+  // No literal default: a key committed to the repo encrypts every profile
+  // under a secret anyone reading this file already has, which is worse than
+  // not uploading at all. Callers only reach here once a key is configured.
+  const secret = process.env.ZG_COMPUTE_PRIVATE_KEY ?? process.env.ZG_DEPLOYER_PRIVATE_KEY
+  if (!secret) throw new Error('ZG_COMPUTE_PRIVATE_KEY or ZG_DEPLOYER_PRIVATE_KEY required to encrypt a profile')
   return createHash('sha256').update(secret).digest()
 }
 
@@ -18,12 +22,6 @@ function encrypt(plaintext: string): Buffer {
   const cipher = createCipheriv('aes-256-gcm', profileKey(), iv)
   const body = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
   return Buffer.concat([iv, cipher.getAuthTag(), body])
-}
-
-export function decryptProfile(blob: Buffer): string {
-  const decipher = createDecipheriv('aes-256-gcm', profileKey(), blob.subarray(0, 12))
-  decipher.setAuthTag(blob.subarray(12, 28))
-  return Buffer.concat([decipher.update(blob.subarray(28)), decipher.final()]).toString('utf8')
 }
 
 export interface StoredProfile {
