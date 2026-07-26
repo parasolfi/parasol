@@ -1,7 +1,7 @@
 # Dossier de soumission — à coller dans le formulaire
 
 ## Project name
-Parasol
+free (formerly Parasol)
 
 ## Short description
 An AI broker that turns prediction markets into parametric insurance. The agent interviews a
@@ -15,10 +15,10 @@ payout. No claim, no adjuster, no custody.
 - First live attestation tx: `0xca3e654620159f8f3f9d52189232ab991e78587136f525eb8a7ed6f66b098e74`
 
 ## Public GitHub repo
-https://github.com/parasolfi/parasol (branch `feat/broker-v2`, PR #1)
+https://github.com/parasolfi/parasol (branch `main`)
 
 ## Live demo link
-https://presence-brussels-enhance-stays.trycloudflare.com/cover
+https://examines-navigate-currently-sentence.trycloudflare.com/cover
 (tunnel depuis la machine démo — regénérer l'URL au matin si le laptop a redémarré,
 et la mettre à jour ici + dans le formulaire)
 
@@ -54,3 +54,20 @@ _À enregistrer — script dans `VIDEO.md`, < 3 min._
 - The Graph: standardized prediction-market subgraphs (Polymarket + Azuro) and on-demand venue
   adapters (Polymarket, Azuro, Kalshi) feed the catalog — see the `subgraphs/` and `adapters/`
   trees and the `feat/graph-indexer` branch.
+
+## ENS
+
+`freefi.eth` (Sepolia, ENSv2) is the broker's identity and the parent of every policy.
+
+- The broker resolves live on the cover page: "Brokered by freefi.eth".
+- Clients identify by name: the wallet field accepts `yourname.eth`, and a connected wallet's name
+  reverse-resolves into their policy cards (tried on Sepolia via the UniversalResolver, then mainnet).
+- **Every policy is a resolvable name.** Example: `madrid-heat-0725-0.freefi.eth`, carrying
+  `description`, `parasol.payout`, `parasol.premium`, `parasol.status`, `parasol.holder`, plus
+  `parasol.attestation` (its 0G Galileo tx) and `parasol.profile` (`0g://<root>` of the encrypted
+  profile). Verify: https://sepolia.app.ens.domains/madrid-heat-0725-0.freefi.eth
+
+The name's resolver is an ENSv2 `PermissionedResolver` advertising `extendedResolver` (ENSIP-10), so
+records written on a policy's node resolve without the subname existing in any registry — no subname
+minting, no ownership transfer. The server's signer owns `freefi.eth`, so policies publish themselves
+as they are issued.
