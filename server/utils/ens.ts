@@ -3,6 +3,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { mainnet, sepolia } from 'viem/chains'
 
 const PARENT = process.env.ENS_PARENT_NAME ?? 'parasol.eth'
+export const ENS_PARENT = PARENT
 const NETWORK = process.env.ENS_NETWORK ?? 'sepolia'
 const SEPOLIA_RPC = process.env.SEPOLIA_RPC_URL ?? 'https://ethereum-sepolia-rpc.publicnode.com'
 const MAINNET_RPC = process.env.ETH_RPC_URL ?? 'https://ethereum-rpc.publicnode.com'
