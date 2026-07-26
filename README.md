@@ -19,16 +19,22 @@ Catalog        live Polymarket daily-temperature events (negRisk buckets), index
                via Gamma + our standardized multi-venue adapters
 Quote          deterministic basket: every bucket at/beyond the threshold;
                premium = payout × Σ ask
+Authorize      the holder signs an EIP-712 Cover authorization; the server refuses
+               to execute anything it cannot verify against their key
 Execute        positions delivered to the client wallet (fork mode: real tokenIds,
                real prices, local settlement — see Geoblock note)
-Attest         agent writes the policy on 0G Galileo (PolicyRegistry)
-Resolve        real Polymarket resolutions flip policy status; winners are paid
-               automatically in USDC.e
+Attest         encrypted profile to 0G Storage, then the agent writes the policy on
+               0G Galileo with that root hash as its commitment
+Resolve        our Polymarket subgraph on The Graph (on-chain payout report) flips
+               policy status; winners are paid automatically in USDC.e
 ```
 
 ## Stack
 
-- **0G Compute Router** — the agent's inference (`ZG_ROUTER_API_KEY`, OpenAI-compatible endpoint)
+- **0G Compute** — the agent's inference: Router (`ZG_ROUTER_API_KEY`) or the direct SDK broker
+  (wallet-signed requests to a live provider, settled on-chain per call)
+- **0G Storage** — the client's risk profile, AES-256-GCM encrypted before upload; the returned
+  root hash is what the on-chain attestation commits to
 - **0G Chain (Galileo, 16602)** — `PolicyRegistry` attestation contract (Foundry, cancun)
 - **The Graph** — standardized prediction-market subgraphs (Polymarket + Azuro) and on-demand
   venue adapters (Polymarket, Azuro, Kalshi) feeding the catalog
