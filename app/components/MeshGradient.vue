@@ -8,7 +8,7 @@ const props = withDefaults(
   { intensity: 1, scale: 1, speed: 1 },
 )
 
-const PALETTE = ['#0d2447', '#1d4f7a', '#3aa9b6', '#7bd9b8', '#c6f4cf']
+const PALETTE = ['#172636', '#4d738f', '#b1482e', '#dd9a70', '#f1e7ce']
 const RING_RADIUS = 0.32
 const NOISE_SCALE = 0.8
 const WARP = 0.24
@@ -249,7 +249,7 @@ onMounted(() => {
       :class="live ? 'opacity-0' : 'opacity-100'"
       :style="{
         background:
-          'radial-gradient(60% 55% at 50% 45%, #c6f4cf 0%, #7bd9b8 18%, #3aa9b6 36%, #1d4f7a 58%, #0d2447 76%, transparent 100%)',
+          'radial-gradient(60% 55% at 50% 45%, #f1e7ce 0%, #dd9a70 18%, #b1482e 36%, #4d738f 58%, #172636 76%, transparent 100%)',
       }"
     />
     <canvas

@@ -7,6 +7,13 @@ export default defineNuxtConfig({
 
   modules: ['@nuxt/fonts'],
 
+  fonts: {
+    families: [
+      { name: 'Space Grotesk', provider: 'google', weights: [400, 500, 600, 700] },
+      { name: 'Inter', provider: 'google', weights: [400, 500, 600] },
+    ],
+  },
+
   css: ['~/assets/css/main.css'],
 
   vite: {
@@ -19,7 +26,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'en' },
-      title: 'Parasol — if it can be measured, it can be insured',
+      title: 'free — if it can be measured, it can be insured',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
@@ -29,7 +36,7 @@ export default defineNuxtConfig({
             'Parametric cover for any event a public source can settle — weather, delays, energy prices, catastrophe. Name the number that would hurt and get paid the moment it happens.',
         },
         { name: 'theme-color', content: '#ffffff' },
-        { property: 'og:title', content: 'Parasol — if it can be measured, it can be insured' },
+        { property: 'og:title', content: 'free — if it can be measured, it can be insured' },
         {
           property: 'og:description',
           content: 'Parametric cover that pays itself out. Built on Polygon.',
