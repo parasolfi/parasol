@@ -72,6 +72,18 @@ const universalResolverAbi = parseAbi([
   'function findResolver(bytes name) view returns (address, bytes32, uint256)',
 ])
 
+export const POLICY_RECORD_KEYS = [
+  'description',
+  'parasol.payout',
+  'parasol.premium',
+  'parasol.status',
+  'parasol.holder',
+  'parasol.registry',
+  'parasol.attestation',
+  'parasol.profile',
+  'parasol.policies',
+] as const
+
 async function parentResolver(): Promise<Address | null> {
   try {
     const [resolver] = await policyClient.readContract({
@@ -85,6 +97,8 @@ async function parentResolver(): Promise<Address | null> {
     return null
   }
 }
+
+export const parentResolverAddress = parentResolver
 
 // The parent's resolver is an ENSv2 PermissionedResolver with a wildcard
 // (ENSIP-10) lookup, so records written on a policy's own node resolve without
