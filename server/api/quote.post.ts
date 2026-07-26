@@ -1,5 +1,5 @@
 import { findCoverOption } from '../utils/catalog'
-import { buildBasket, priceBasketFromBook } from '../utils/basket'
+import { basketTotal, buildBasket, cheapestViableThreshold, priceBasketFromBook } from '../utils/basket'
 import { EXECUTION_MODE } from '../utils/chain'
 
 export default defineEventHandler(async (event) => {
@@ -17,6 +17,20 @@ export default defineEventHandler(async (event) => {
   const basket = buildBasket(option, thresholdC, payoutUsdc)
   if (!basket) throw createError({ statusCode: 422, statusMessage: 'no bucket covers this threshold' })
   const priced = await priceBasketFromBook(basket)
+
+  // Cover that costs more than it can ever pay is not cover. Buying every
+  // bucket above a low threshold reaches that point: Madrid July 27 at 33°C
+  // priced at 1410 USDC for a 1000 USDC payout.
+  const total = basketTotal(priced)
+  if (total >= payoutUsdc) {
+    const viable = cheapestViableThreshold(priced)
+    throw createError({
+      statusCode: 422,
+      statusMessage: viable === null
+        ? `${total} USDC to cover ${payoutUsdc} USDC: no threshold on this market pays for itself right now`
+        : `${total} USDC to cover ${payoutUsdc} USDC — raise the threshold to ${viable}°${option.unit} or above`,
+    })
+  }
 
   return {
     option: { id: option.id, question: option.question, city: option.city, date: option.date, peril: option.peril, unit: option.unit },
