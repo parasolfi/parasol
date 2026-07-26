@@ -36,18 +36,18 @@ Resolve        our Polymarket subgraph on The Graph (on-chain payout report) fli
 - **0G Storage** — the client's risk profile, AES-256-GCM encrypted before upload; the returned
   root hash is what the on-chain attestation commits to
 - **0G Chain (Galileo, 16602)** — `PolicyRegistry` attestation contract (Foundry, cancun)
-- **The Graph** — standardized prediction-market subgraphs (Polymarket + Azuro) and on-demand
-  venue adapters (Polymarket, Azuro, Kalshi) feeding the catalog
+- **The Graph** — standardized prediction-market subgraphs (Polymarket + Azuro) feeding the
+  catalog, plus an on-demand Polymarket adapter for markets older than the subgraph's start block
 - **ENS** — `freefi.eth` (Sepolia, ENSv2) is the broker's identity, clients identify by name, and
   every policy is itself a resolvable name
 - **Polymarket** — liquidity: daily temperature bucket markets (CLOB v2, negRisk)
-- **Nuxt 4** — front + server routes, plain WebGL landing shaders
+- **Nuxt 4** — front + server routes; there is no marketing landing, `/` opens straight on `/cover`
 
 ## Contracts
 
 | Contract | Network | Address |
 |---|---|---|
-| PolicyRegistry | 0G Galileo (16602) | [`0x504C64EBb9816AA9238404244fC8849d849B5A6e`](https://chainscan-galileo.0g.ai/address/0x504C64EBb9816AA9238404244fC8849d849B5A6e) |
+| PolicyRegistry | 0G Galileo (16602) | [`0x8bB0916AB3eab1896D53AD4e6c3B9508FCd5507f`](https://chainscan-galileo.0g.ai/address/0x8bB0916AB3eab1896D53AD4e6c3B9508FCd5507f) |
 
 ## Names
 
@@ -70,7 +70,8 @@ pnpm dev                                                 # http://localhost:3000
 ```
 
 `.env`: `ZG_ROUTER_API_KEY` (0G Router), `ZG_DEPLOYER_PRIVATE_KEY` + `POLICY_REGISTRY_ADDRESS`
-(Galileo attestations), `FORK_RPC_URL` (defaults to `http://127.0.0.1:8545`).
+(Galileo attestations), `FORK_RPC_URL` (defaults to `http://127.0.0.1:8545` — set it to the port
+anvil actually listens on, `8546` above, or the server talks to nothing).
 
 Without a Router key the interview falls back to a scripted flow, clearly labeled
 "Offline fallback" in the UI — quotes and execution still run on live market data.
@@ -80,8 +81,9 @@ Without a Router key the interview falls back to a scripted flow, clearly labele
 Polymarket order placement is geo-restricted in many jurisdictions. The demo executes settlement
 on an Anvil fork of Polygon: the exact clobTokenIds at live CLOB prices, delivered by impersonating
 live holders — never a CTF split, which cannot reproduce negRisk position ids. Prices, markets and
-resolutions are all real mainnet data. Real CLOB execution is a config switch when run from an
-unrestricted jurisdiction.
+resolutions are all real mainnet data, and delivery is a real on-chain transfer on that fork. Real
+CLOB execution is one config switch — `EXECUTION_MODE=venue` — when run from an unrestricted
+jurisdiction.
 
 ## Not weather insurance
 
