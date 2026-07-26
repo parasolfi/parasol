@@ -56,10 +56,27 @@ graph auth <studio-deploy-key>
 npm run deploy
 ```
 
-Then point the server at it:
+The Studio slug is **`freefi`**, and the network to pick there is **Polygon
+(matic)** — it has to match `network: matic` in the manifest.
+
+The live deployment is:
 
 ```
-POLYMARKET_SUBGRAPH_URL=https://api.studio.thegraph.com/query/<id>/parasol-polymarket/<version>
+https://api.studio.thegraph.com/query/107915/freefi/version/latest
+```
+
+which is also the default in `server/utils/subgraph.ts`. Override it with
+`POLYMARKET_SUBGRAPH_URL` to point at a fork rather than editing the default.
+Use `version/latest`, not a pinned `0.1.1`, so a redeploy needs no env change.
+
+A freshly deployed subgraph answers `_meta` long before it has caught up. Until
+it reaches chain head, lookups for recent conditions return nothing and the
+watcher falls back to the venue API — which is correct, but means an empty
+result proves nothing on its own. Check the lag first:
+
+```bash
+curl -s -X POST "$POLYMARKET_SUBGRAPH_URL" -H 'content-type: application/json' \
+  -d '{"query":"{ _meta { block { number } hasIndexingErrors } }"}'
 ```
 
 ## Checking it actually works
