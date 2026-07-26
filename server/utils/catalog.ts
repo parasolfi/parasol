@@ -30,19 +30,23 @@ let cache: { at: number; options: CoverOption[] } | null = null
 const EVENT_TITLE_RE = /^(Highest|Lowest) temperature in (.+?) on (.+?)\?$/i
 const BUCKET_RE = /be (-?\d+(?:-\d+)?)°([CF])(?: or (below|lower|above|higher))?/i
 
+function parseJsonArray(raw: unknown): any[] {
+  try {
+    const parsed = JSON.parse(typeof raw === 'string' ? raw : '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 function parseBucket(m: any): CoverBucket | null {
   if (m.closed || m.active === false) return null
   const q = (m.question ?? '').match(BUCKET_RE)
   if (!q) return null
-  let tokenIds: string[]
-  try {
-    tokenIds = JSON.parse(m.clobTokenIds)
-  } catch {
-    return null
-  }
-  if (!tokenIds?.[0]) return null
+  const tokenIds = parseJsonArray(m.clobTokenIds)
+  if (!tokenIds[0]) return null
   const dir = q[3]?.toLowerCase()
-  const ask = Number(m.bestAsk) || Number(JSON.parse(m.outcomePrices ?? '[]')[0]) || 0
+  const ask = Number(m.bestAsk) || Number(parseJsonArray(m.outcomePrices)[0]) || 0
   return {
     tokenId: tokenIds[0],
     conditionId: m.conditionId,
@@ -62,7 +66,9 @@ function toCoverOption(event: any): CoverOption | null {
   if (!t || !t[1] || !t[2] || !t[3]) return null
   const buckets = (event.markets ?? []).map(parseBucket).filter(Boolean) as CoverBucket[]
   if (buckets.length < 2) return null
-  const unit = (event.markets[0].question.match(BUCKET_RE)?.[2] ?? 'C') as 'C' | 'F'
+  // markets[0] can be a closed or malformed bucket that parseBucket dropped, so
+  // its question is not guaranteed to exist, let alone to match.
+  const unit = ((event.markets as any[]).map((m) => (m?.question ?? '').match(BUCKET_RE)?.[2]).find(Boolean) ?? 'C') as 'C' | 'F'
   return {
     id: `polymarket-${event.id}`,
     venue: 'polymarket',

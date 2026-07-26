@@ -15,6 +15,8 @@ export interface BasketLeg {
   shares: number
   limitPrice?: number
   depthShort?: boolean
+  feeUsdc?: number
+  thresholdDeg?: number | null
 }
 
 export interface Basket {
@@ -51,6 +53,7 @@ export function buildBasket(option: CoverOption, threshold: number, payoutUsdc: 
       label: b.label,
       ask: b.ask,
       shares: payoutUsdc,
+      thresholdDeg: b.thresholdDeg,
     })),
     payoutUsdc,
     premiumUsdc: round2(payoutUsdc * impliedProbability),
@@ -71,9 +74,16 @@ export async function priceBasketFromBook(basket: Basket): Promise<Basket> {
       const [book, fee] = await Promise.all([getBook(leg.tokenId), getFeeParams(leg.conditionId)])
       const fill = estimateFill(book, leg.shares)
       if (!fill) return { leg, fee: 0 }
+      const legFee = takerFee(fill.filledShares, fill.averagePrice, fee)
       return {
-        leg: { ...leg, ask: round4(fill.averagePrice), limitPrice: round4(fill.worstPrice), depthShort: fill.depthShort },
-        fee: takerFee(fill.filledShares, fill.averagePrice, fee),
+        leg: {
+          ...leg,
+          ask: round4(fill.averagePrice),
+          limitPrice: round4(fill.worstPrice),
+          depthShort: fill.depthShort,
+          feeUsdc: round2(legFee),
+        },
+        fee: legFee,
       }
     }),
   )
@@ -92,6 +102,36 @@ export async function priceBasketFromBook(basket: Basket): Promise<Basket> {
     impliedProbability: Math.min(1, round4(impliedProbability)),
     pricedFrom: 'book',
   }
+}
+
+export function basketTotal(basket: Basket): number {
+  return round2(basket.premiumUsdc + basket.feesUsdc)
+}
+
+/**
+ * Buying every bucket above a low threshold can cost more than the cover can
+ * ever pay: on Madrid July 27 at 33°C the premium reached 1410 USDC against a
+ * 1000 USDC payout. Raising the threshold drops the cheapest legs, so the
+ * answer is a subset of the priced basket — no extra book reads needed.
+ *
+ * Returns the lowest threshold whose premium plus fees stays under the payout,
+ * or null when even the tail alone costs too much.
+ */
+export function cheapestViableThreshold(basket: Basket): number | null {
+  const ordered = [...basket.legs].sort(
+    (a, b) => (a.thresholdDeg ?? Number.NEGATIVE_INFINITY) - (b.thresholdDeg ?? Number.NEGATIVE_INFINITY),
+  )
+
+  let premium = basket.premiumUsdc
+  let fees = basket.feesUsdc
+
+  for (const leg of ordered) {
+    if (round2(premium + fees) < basket.payoutUsdc && leg.thresholdDeg != null) return leg.thresholdDeg
+    premium -= leg.ask * basket.payoutUsdc
+    fees -= leg.feeUsdc ?? 0
+  }
+
+  return null
 }
 
 // The tail-start threshold turns the basket into a single order (one

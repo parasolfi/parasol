@@ -17,6 +17,7 @@ export interface PolicyRecord {
   feesUsdc: number
   profile: string
   authorization: string
+  nonce: string
   issuedAt: string
   status: 'Issued' | 'ResolvedYes' | 'ResolvedNo' | 'Paid'
   chain: { network: string; registry: string; txHash: string } | null
@@ -72,14 +73,19 @@ async function attestOnChain(p: PolicyRecord): Promise<PolicyRecord['chain']> {
   }
 }
 
+// 0G Storage, the Galileo attestation and the ENS writes take seconds. Holding
+// the in-memory list across them meant two concurrent covers both wrote back
+// the list they had read at the start: the first policy vanished, and both
+// carried the same id. The id is claimed up front, the list re-read at save.
+let nextId = Math.max(-1, ...load().map((r) => r.id)) + 1
+
 export async function issuePolicy(
   input: Omit<PolicyRecord, 'id' | 'issuedAt' | 'status' | 'chain' | 'storage' | 'ens'> & { issuedAt?: string },
   naming?: { city: string; peril: string; date: string },
 ): Promise<PolicyRecord> {
-  const records = load()
   const record: PolicyRecord = {
     ...input,
-    id: records.length,
+    id: nextId++,
     issuedAt: input.issuedAt ?? new Date().toISOString(),
     status: 'Issued',
     chain: null,
@@ -101,13 +107,16 @@ export async function issuePolicy(
       policyLabel(naming.city, naming.peril, naming.date, record.id),
       policyRecords(record),
     )
-  records.push(record)
-  save(records)
+  save([...load(), record])
   return record
 }
 
 export function listPolicies(): PolicyRecord[] {
   return load()
+}
+
+export function isNonceSpent(nonce: string): boolean {
+  return load().some((r) => r.nonce?.toLowerCase() === nonce)
 }
 
 export function updatePolicyStatus(id: number, status: PolicyRecord['status']): PolicyRecord | null {

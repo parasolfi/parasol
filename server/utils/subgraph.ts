@@ -1,6 +1,10 @@
+// Studio deployment, slug "freefi", account id 107915. version/latest rather
+// than a pinned version so a redeploy does not need an env change.
+// POLYMARKET_SUBGRAPH_URL still overrides it — point that at a fork of this
+// subgraph rather than editing the default.
 const POLYMARKET_SUBGRAPH =
   process.env.POLYMARKET_SUBGRAPH_URL ??
-  'https://api.studio.thegraph.com/query/1756988/parasol-polymarket/version/latest'
+  'https://api.studio.thegraph.com/query/107915/freefi/version/latest'
 
 export interface IndexedResolution {
   winningOutcomeIndex: number
@@ -34,20 +38,6 @@ export async function getIndexedResolution(conditionId: string): Promise<Indexed
       finalizedAt: String(resolution.finalizedAt ?? ''),
       resolutionSource: String(resolution.resolutionSource ?? ''),
     }
-  } catch {
-    return null
-  }
-}
-
-export async function getSubgraphHead(): Promise<number | null> {
-  try {
-    const res = await fetch(POLYMARKET_SUBGRAPH, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: '{ _meta { block { number } } }' }),
-    })
-    const data = await res.json()
-    return Number(data?.data?._meta?.block?.number) || null
   } catch {
     return null
   }
