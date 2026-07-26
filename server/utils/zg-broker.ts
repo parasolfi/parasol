@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { createZGComputeNetworkBroker } from '@0gfoundation/0g-compute-ts-sdk'
+import type { createZGComputeNetworkBroker } from '@0gfoundation/0g-compute-ts-sdk'
 
 const CHAT_PROVIDER = process.env.ZG_COMPUTE_PROVIDER ?? '0xa48f01287233509FD694a22Bf840225062E67836'
 const GALILEO_RPC = process.env.ZG_RPC_URL ?? 'https://evmrpc-testnet.0g.ai'
@@ -21,6 +21,10 @@ async function getSession(): Promise<BrokerSession | null> {
   const key = process.env.ZG_COMPUTE_PRIVATE_KEY ?? process.env.ZG_DEPLOYER_PRIVATE_KEY
   if (!key) return null
   try {
+    // Loaded on demand: the SDK pulls circomlibjs, brotli and express, which
+    // fail to load in a serverless bundle and would take the whole route down
+    // at import time — 500 instead of the next inference tier.
+    const { createZGComputeNetworkBroker } = await import('@0gfoundation/0g-compute-ts-sdk')
     const wallet = new ethers.Wallet(key, new ethers.JsonRpcProvider(GALILEO_RPC))
     const broker = await createZGComputeNetworkBroker(wallet)
     await broker.ledger.getLedger()
