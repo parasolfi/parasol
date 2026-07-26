@@ -1,0 +1,62 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "gameId", "type": "uint256" },
+      { "indexed": true, "internalType": "uint256", "name": "conditionId", "type": "uint256" },
+      { "indexed": false, "internalType": "uint128[]", "name": "outcomes", "type": "uint128[]" },
+      { "indexed": false, "internalType": "uint64[]", "name": "odds", "type": "uint64[]" },
+      { "indexed": false, "internalType": "uint8", "name": "winningOutcomesCount", "type": "uint8" }
+    ],
+    "name": "ConditionCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "conditionId", "type": "uint256" },
+      { "indexed": false, "internalType": "uint8", "name": "state", "type": "uint8" },
+      {
+        "indexed": false,
+        "internalType": "struct ILiveCore.OutcomeResolution[]",
+        "name": "resolvedOutcomes",
+        "type": "tuple[]",
+        "components": [
+          { "internalType": "uint128", "name": "outcomeId", "type": "uint128" },
+          { "internalType": "enum ILiveCore.OutcomeStatus", "name": "status", "type": "uint8" }
+        ]
+      },
+      { "indexed": false, "internalType": "int128", "name": "lpProfit", "type": "int128" },
+      { "indexed": false, "internalType": "uint64", "name": "settledAt", "type": "uint64" }
+    ],
+    "name": "ConditionSettled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256" },
+      { "indexed": true, "internalType": "address", "name": "bettor", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "affiliate", "type": "address" },
+      { "indexed": false, "internalType": "enum IOrder.BetType", "name": "betType", "type": "uint8" },
+      { "indexed": false, "internalType": "uint256", "name": "nonce", "type": "uint256" },
+      { "indexed": false, "internalType": "uint128", "name": "amount", "type": "uint128" },
+      {
+        "indexed": false,
+        "internalType": "struct ILiveCore.SubBetData[]",
+        "name": "betDatas",
+        "type": "tuple[]",
+        "components": [
+          { "internalType": "uint256", "name": "gameId", "type": "uint256" },
+          { "internalType": "uint256", "name": "conditionId", "type": "uint256" },
+          { "internalType": "enum IOrder.ConditionKind", "name": "conditionKind", "type": "uint8" },
+          { "internalType": "uint128", "name": "outcomeId", "type": "uint128" },
+          { "internalType": "uint64", "name": "odds", "type": "uint64" }
+        ]
+      },
+      { "indexed": false, "internalType": "uint128", "name": "potentialLossLimit", "type": "uint128" }
+    ],
+    "name": "NewLiveBet",
+    "type": "event"
+  }
+]
